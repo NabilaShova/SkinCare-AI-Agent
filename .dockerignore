@@ -1,0 +1,11 @@
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.git
+**/.DS_Store
+**/node_modules
+**/.venv
+**/.env
+**/.env.*
+**/dist
+**/build
