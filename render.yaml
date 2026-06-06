@@ -3,7 +3,7 @@
 
 databases:
   - name: skincare-db
-    plan: basic-256mb
+    plan: free
     databaseName: support_agent
     user: support_agent
     postgresMajorVersion: "15"
@@ -13,7 +13,7 @@ services:
   - type: web
     name: skincare-api
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./backend/Dockerfile.prod
     dockerContext: ./backend
     healthCheckPath: /health
@@ -62,7 +62,7 @@ services:
   - type: web
     name: skincare-frontend
     runtime: node
-    plan: starter
+    plan: free
     rootDir: frontend
     buildCommand: npm install --legacy-peer-deps && npm run build
     startCommand: npm start
