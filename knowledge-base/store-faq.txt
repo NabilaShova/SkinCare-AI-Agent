@@ -1,0 +1,44 @@
+Glow Beauty Co. — Store FAQ
+
+About Our Products
+- All products are cruelty-free.
+- Products are dermatologist-tested unless otherwise noted on the product page.
+- Fragrance-free options are labeled clearly in product descriptions and titles.
+- Vegan formulas are marked on applicable product pages.
+
+Product Recommendations
+- Our AI skincare advisor can help you choose products based on skin type, concerns, and goals.
+- Recommendations are based on products available in our current catalog.
+- We do not diagnose skin conditions or prescribe medication.
+
+Skin Types We Support
+- Oily
+- Dry
+- Combination
+- Sensitive
+- Normal
+
+Common Concerns We Can Help With
+- Acne and breakouts
+- Oily skin and enlarged pores
+- Dark spots and uneven tone
+- Fine lines and aging concerns
+- Dehydration and barrier support
+- Redness and sensitivity
+
+How to Build a Routine
+- Ask the chat assistant for a morning routine, night routine, or complete regimen.
+- A basic morning routine: cleanser, antioxidant serum, moisturizer, sunscreen.
+- A basic night routine: cleanser, treatment serum, moisturizer.
+
+Payments and Orders
+- We accept standard Shopify checkout payment methods.
+- Order confirmation is sent by email after purchase.
+
+Support Channels
+- AI chat on our website for product, ingredient, policy, and order questions.
+- Human escalation is available for complex issues such as refund disputes.
+
+Medical Disclaimer
+- Our guidance is for cosmetic skincare education only.
+- For medical conditions, severe acne, infections, or allergic reactions, consult a licensed dermatologist.

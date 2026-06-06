@@ -8,19 +8,62 @@ from app.core.config import settings
 from app.db.models import EmbeddingRecord, Product
 
 
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 80) -> list[str]:
-    normalized = re.sub(r"\s+", " ", text).strip()
+def _split_long_block(text: str, chunk_size: int, overlap: int) -> list[str]:
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    chunks: list[str] = []
+    current = ""
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        candidate = f"{current} {sentence}".strip() if current else sentence
+        if len(candidate) <= chunk_size:
+            current = candidate
+            continue
+        if current:
+            chunks.append(current)
+        if len(sentence) <= chunk_size:
+            current = sentence
+            continue
+        start = 0
+        while start < len(sentence):
+            end = min(start + chunk_size, len(sentence))
+            chunks.append(sentence[start:end].strip())
+            if end == len(sentence):
+                break
+            start = max(end - overlap, start + 1)
+        current = ""
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def chunk_text(text: str, chunk_size: int = 600, overlap: int = 80) -> list[str]:
+    normalized = text.replace("\r\n", "\n").strip()
     if not normalized:
         return []
 
+    blocks = [re.sub(r"[ \t]+", " ", block.strip()) for block in re.split(r"\n\s*\n", normalized)]
+    blocks = [block for block in blocks if block]
+    if not blocks:
+        return []
+
     chunks: list[str] = []
-    start = 0
-    while start < len(normalized):
-        end = min(start + chunk_size, len(normalized))
-        chunks.append(normalized[start:end])
-        if end == len(normalized):
-            break
-        start = max(end - overlap, start + 1)
+    current = ""
+    for block in blocks:
+        candidate = f"{current}\n\n{block}".strip() if current else block
+        if len(candidate) <= chunk_size:
+            current = candidate
+            continue
+        if current:
+            chunks.append(current)
+            current = ""
+        if len(block) <= chunk_size:
+            current = block
+        else:
+            chunks.extend(_split_long_block(block, chunk_size, overlap))
+    if current:
+        chunks.append(current)
     return chunks
 
 
@@ -139,12 +182,87 @@ def index_product_embeddings(db: Session, store_id: int) -> None:
         )
 
 
+POLICY_SOURCE_HINTS: dict[str, list[str]] = {
+    "ship": ["shipping"],
+    "shipping": ["shipping"],
+    "international": ["shipping", "international"],
+    "delivery": ["shipping", "delivery"],
+    "tracking": ["shipping", "tracking"],
+    "return": ["return", "refund"],
+    "refund": ["return", "refund"],
+    "exchange": ["return", "refund"],
+    "policy": ["shipping", "return", "store-faq"],
+    "faq": ["store-faq"],
+}
+
+INGREDIENT_SOURCE_HINTS: dict[str, list[str]] = {
+    "niacinamide": ["ingredient"],
+    "vitamin c": ["ingredient"],
+    "retinol": ["ingredient"],
+    "salicylic": ["ingredient"],
+    "hyaluronic": ["ingredient"],
+    "ceramide": ["ingredient"],
+    "ingredient": ["ingredient"],
+    "layer": ["ingredient", "product-usage"],
+    "routine": ["product-usage", "skin-consultation"],
+}
+
+
+def _source_boost(query: str, source: str, intent: str | None = None) -> float:
+    lowered_query = query.lower()
+    lowered_source = source.lower()
+    boost = 0.0
+    hint_map = POLICY_SOURCE_HINTS if intent == "policy_faq" else INGREDIENT_SOURCE_HINTS if intent == "ingredient_question" else {}
+
+    for term, preferred_sources in hint_map.items():
+        if term not in lowered_query:
+            continue
+        if any(preferred in lowered_source for preferred in preferred_sources):
+            boost += 0.35
+        elif intent == "policy_faq" and any(
+            blocked in lowered_source for blocked in ("product-usage", "skin-consultation", "ingredient")
+        ):
+            boost -= 0.3
+
+    query_terms = set(re.findall(r"[a-z0-9]+", lowered_query))
+    source_terms = set(re.findall(r"[a-z0-9]+", lowered_source))
+    boost += min(len(query_terms & source_terms) * 0.08, 0.24)
+    return boost
+
+
+def _keyword_overlap_boost(query: str, text: str) -> float:
+    query_terms = set(re.findall(r"[a-z0-9]{3,}", query.lower()))
+    text_terms = set(re.findall(r"[a-z0-9]{3,}", text.lower()))
+    if not query_terms:
+        return 0.0
+    overlap = len(query_terms & text_terms)
+    return min(overlap * 0.05, 0.25)
+
+
+def format_knowledge_context(hits: list[dict[str, Any]]) -> str:
+    if not hits:
+        return "No knowledge retrieved."
+
+    sections: list[str] = []
+    seen_text: set[str] = set()
+    for hit in hits:
+        text = re.sub(r"\s+", " ", hit.get("text", "")).strip()
+        if not text or text in seen_text:
+            continue
+        seen_text.add(text)
+        label = re.sub(r"\.(txt|md|pdf)$", "", hit.get("source", "knowledge"), flags=re.IGNORECASE)
+        label = label.replace("-", " ").replace("_", " ").strip().title()
+        sections.append(f"{label}:\n{text}")
+    return "\n\n".join(sections) if sections else "No knowledge retrieved."
+
+
 def search_knowledge(
     db: Session,
     query: str,
     store_id: int,
     limit: int | None = None,
     include_products: bool = False,
+    intent: str | None = None,
 ) -> list[dict[str, Any]]:
     limit = limit or settings.RAG_TOP_K
     records = db.query(EmbeddingRecord).filter(EmbeddingRecord.store_id == store_id).all()
@@ -162,7 +280,9 @@ def search_knowledge(
             "product_id": (record.meta or {}).get("product_id"),
             "product_title": (record.meta or {}).get("product_title"),
             "type": (record.meta or {}).get("type", "document"),
-            "score": _cosine_similarity(query_vector, record.vector),
+            "score": _cosine_similarity(query_vector, record.vector)
+            + _source_boost(query, (record.meta or {}).get("source", ""), intent=intent)
+            + _keyword_overlap_boost(query, record.chunk_text),
         }
         for record in records
     ]

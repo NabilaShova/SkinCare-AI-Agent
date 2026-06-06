@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.models import Conversation, Message, Order, Product
-from app.services.rag import build_retrieval_query, search_knowledge, search_products
+from app.services.rag import build_retrieval_query, format_knowledge_context, search_knowledge, search_products
 
 Intent = Literal[
     "product_recommendation",
@@ -222,6 +222,8 @@ def _build_system_prompt(intent: str, context: dict[str, Any]) -> str:
         "- If required data is missing, ask a short clarifying question.\n"
         "- Never diagnose diseases, prescribe medication, or claim medical cures.\n"
         "- Keep responses conversational, clear, and under 180 words unless building a routine.\n"
+        "- Never show raw document filenames, chunk markers, or unedited policy excerpts to the customer.\n"
+        "- Summarize policies in plain language with short bullet points when helpful.\n"
         f"Active intent: {intent}\n"
         f"Intent instructions: {_intent_instructions(intent)}\n"
         f"Customer profile: {json.dumps(context.get('profile', {}))}\n"
@@ -231,11 +233,87 @@ def _build_system_prompt(intent: str, context: dict[str, Any]) -> str:
     )
 
 
+def _extract_knowledge_points(text: str, query_terms: set[str], limit: int = 4) -> list[str]:
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    if not cleaned:
+        return []
+
+    parts = re.split(r"\s*-\s+", cleaned)
+    points: list[str] = []
+    for part in parts:
+        sentence = part.strip(" .")
+        if len(sentence) < 18:
+            continue
+        if sentence.endswith("."):
+            points.append(sentence)
+        else:
+            points.append(f"{sentence}.")
+    if not points:
+        points = [cleaned if cleaned.endswith(".") else f"{cleaned}."]
+
+    ranked = sorted(
+        points,
+        key=lambda point: sum(1 for term in query_terms if term in point.lower()),
+        reverse=True,
+    )
+    unique: list[str] = []
+    seen: set[str] = set()
+    for point in ranked:
+        key = point[:60].lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(point)
+        if len(unique) >= limit:
+            break
+    return unique
+
+
+def _policy_fallback_answer(message: str, knowledge_hits: list[dict[str, Any]]) -> str:
+    if not knowledge_hits:
+        return (
+            "I do not have the store policy details loaded yet. "
+            "Please contact support, or ask me about products and ingredients."
+        )
+
+    query_terms = set(re.findall(r"[a-z0-9]{3,}", message.lower()))
+    points: list[str] = []
+    for hit in knowledge_hits[:3]:
+        points.extend(_extract_knowledge_points(hit.get("text", ""), query_terms, limit=3))
+
+    if not points:
+        points = _extract_knowledge_points(knowledge_hits[0].get("text", ""), query_terms, limit=3)
+
+    lowered = message.lower()
+    if any(term in lowered for term in ["international", "ship", "shipping", "delivery"]):
+        lead = "Yes, we offer international shipping."
+    elif any(term in lowered for term in ["return", "refund", "exchange"]):
+        lead = "Here is our return and refund policy:"
+    else:
+        lead = "Here is what I can share from our store policies:"
+
+    body = "\n".join(f"- {point}" for point in points[:4])
+    return f"{lead}\n{body}\n\nLet me know if you want help with a product or order next."
+
+
+def _ingredient_fallback_answer(message: str, knowledge_hits: list[dict[str, Any]]) -> str:
+    if not knowledge_hits:
+        return (
+            "I can help with ingredient questions once the store knowledge base is loaded. "
+            "Tell me which ingredients or products you are comparing."
+        )
+
+    query_terms = set(re.findall(r"[a-z0-9]{3,}", message.lower()))
+    points = _extract_knowledge_points(knowledge_hits[0].get("text", ""), query_terms, limit=4)
+    body = "\n".join(f"- {point}" for point in points)
+    return f"Here is guidance based on our ingredient knowledge:\n{body}\n\nI can also suggest suitable products if you'd like."
+
+
 def _fallback_response(state: AgentState) -> str:
     intent = state["intent"]
     context = state["context"]
     products = context.get("product_objects", [])
-    knowledge = context.get("knowledge", "")
+    knowledge_hits = context.get("knowledge_hits", [])
     orders = context.get("orders", "")
 
     if intent == "medical_safety":
@@ -262,17 +340,11 @@ def _fallback_response(state: AgentState) -> str:
             "and the email used at checkout."
         )
 
-    if intent == "policy_faq" and knowledge:
-        return (
-            f"Here is what I found in the store policies:\n{knowledge}\n"
-            "Let me know if you want help with a product or order next."
-        )
+    if intent == "policy_faq":
+        return _policy_fallback_answer(state["user_message"], knowledge_hits)
 
-    if intent == "ingredient_question" and knowledge:
-        return (
-            f"Here is guidance based on our ingredient knowledge:\n{knowledge}\n"
-            "I can also suggest suitable products from the catalog if you'd like."
-        )
+    if intent == "ingredient_question":
+        return _ingredient_fallback_answer(state["user_message"], knowledge_hits)
 
     if intent == "product_recommendation" and products:
         lead = products[0]
@@ -370,9 +442,14 @@ def _node_gather_context(
 ) -> AgentState:
     retrieval_query = build_retrieval_query(state["user_message"], profile=profile, history=history)
     products = search_products(db, retrieval_query, state["store_id"], profile=profile)
-    knowledge_hits = search_knowledge(db, retrieval_query, state["store_id"])
-    knowledge_text = "\n".join(
-        f"[{hit['source']}] {hit['text']}" for hit in knowledge_hits if hit.get("type") != "product"
+    knowledge_hits = search_knowledge(
+        db,
+        retrieval_query,
+        state["store_id"],
+        intent=state["intent"],
+    )
+    knowledge_text = format_knowledge_context(
+        [hit for hit in knowledge_hits if hit.get("type") != "product"]
     )
 
     orders_text = ""
@@ -398,6 +475,7 @@ def _node_gather_context(
         "products": _format_products(products),
         "product_objects": products,
         "knowledge": knowledge_text,
+        "knowledge_hits": knowledge_hits,
         "orders": orders_text,
         "profile": profile,
     }
