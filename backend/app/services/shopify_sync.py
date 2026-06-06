@@ -23,14 +23,32 @@ def _extract_ingredients(description: str | None, tags: str | None) -> str | Non
     return match.group(1).strip() if match else None
 
 
-def _format_price(variants: list[dict[str, Any]]) -> str | None:
+CURRENCY_SYMBOLS: dict[str, str] = {
+    "USD": "$",
+    "BDT": "৳",
+    "EUR": "€",
+    "GBP": "£",
+    "CAD": "CA$",
+    "AUD": "A$",
+    "INR": "₹",
+    "JPY": "¥",
+}
+
+
+def _format_price(variants: list[dict[str, Any]], currency: str = "USD") -> str | None:
     if not variants:
         return None
     price = variants[0].get("price")
-    return f"BDT {price}" if price else None
+    if not price:
+        return None
+    code = (currency or "USD").upper()
+    symbol = CURRENCY_SYMBOLS.get(code)
+    if symbol:
+        return f"{symbol}{price}"
+    return f"{code} {price}"
 
 
-def _upsert_product(db: Session, store_id: int, item: dict[str, Any]) -> None:
+def _upsert_product(db: Session, store_id: int, item: dict[str, Any], *, currency: str = "USD") -> None:
     shopify_product_id = str(item["id"])
     product = (
         db.query(Product)
@@ -49,7 +67,7 @@ def _upsert_product(db: Session, store_id: int, item: dict[str, Any]) -> None:
         "ingredients": _extract_ingredients(description, item.get("tags")),
         "collections": [item.get("product_type")] if item.get("product_type") else [],
         "variants": variants,
-        "price": _format_price(variants),
+        "price": _format_price(variants, currency),
         "available": available,
     }
 
@@ -141,6 +159,7 @@ def sync_store_catalog(db: Session, store: Store) -> dict[str, Any]:
 
     shop_info = client.get_shop()
     store.name = shop_info.get("name") or store.name
+    shop_currency = shop_info.get("currency") or "USD"
 
     products, product_warnings = _sync_resource("products", client.get_products)
     warnings.extend(product_warnings)
@@ -153,7 +172,7 @@ def sync_store_catalog(db: Session, store: Store) -> dict[str, Any]:
     warnings.extend(order_warnings)
 
     for product in products:
-        _upsert_product(db, store.id, product)
+        _upsert_product(db, store.id, product, currency=shop_currency)
 
     if customers_allowed:
         for customer in customers:
@@ -181,6 +200,7 @@ def sync_store_catalog(db: Session, store: Store) -> dict[str, Any]:
         "orders_synced": len(orders),
         "last_synced_at": store.last_synced_at.isoformat() if store.last_synced_at else None,
         "status": status,
+        "currency": shop_currency,
         "warnings": warnings,
     }
 
