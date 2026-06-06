@@ -1,6 +1,6 @@
 # AI Customer Support Agent for Shopify Beauty & Skincare Stores
 
-Production-ready AI customer support SaaS for Shopify beauty and skincare merchants. The platform combines Shopify product sync, RAG knowledge retrieval, LangGraph agent routing, order support, human escalation, and a modern admin dashboard.
+Production-ready AI customer support SaaS for Shopify beauty and skincare merchants. The platform combines Shopify OAuth and product sync, RAG knowledge retrieval, LangGraph agent routing, order support, human escalation, and an admin dashboard.
 
 ## Tech Stack
 
@@ -10,19 +10,86 @@ Production-ready AI customer support SaaS for Shopify beauty and skincare mercha
 | Backend | Python FastAPI |
 | Database | PostgreSQL 15 + pgvector |
 | AI | OpenAI, LangChain, LangGraph, RAG |
-| Auth | Shopify OAuth (scaffolded) |
-| Runtime | Docker Compose |
+| Auth | Shopify OAuth, admin API key |
+| Runtime | Docker Compose, Render Blueprint |
 
 ## Features
 
 - AI skincare consultant chat at `/chat`
 - Product recommendations from synced Shopify catalog
 - Ingredient compatibility and FAQ answers via RAG
-- Order status lookup for demo order `#3452`
+- Order status lookup when order number is provided
 - Shipping, return, and policy answers from knowledge base
 - Medical safety guardrails and human escalation detection
 - Admin dashboard for conversations, products, knowledge, analytics, and settings
-- Demo store seeded automatically on first startup
+- Shopify OAuth connect + catalog sync
+- Knowledge document upload (`.txt`, `.md`, `.pdf`)
+- Demo catalog auto-seeded on first deploy for empty databases
+
+## Live Production (Render)
+
+| Service | URL |
+| --- | --- |
+| Frontend | https://skincare-frontend-z72h.onrender.com |
+| API | https://skincare-api-68pp.onrender.com |
+| Chat | https://skincare-frontend-z72h.onrender.com/chat |
+| Settings | https://skincare-frontend-z72h.onrender.com/dashboard/settings |
+| Products | https://skincare-frontend-z72h.onrender.com/dashboard/products |
+| Knowledge | https://skincare-frontend-z72h.onrender.com/dashboard/knowledge |
+| Health | https://skincare-api-68pp.onrender.com/health |
+
+**Connected dev store:** `glow-beauty-dev-dmf5uuka.myshopify.com`  
+**Shopify OAuth redirect URL:** `https://skincare-api-68pp.onrender.com/api/auth/callback`
+
+Full deployment history and step-by-step ops guide: `DEPLOYMENT_LOG.txt`
+
+## Store IDs (Important)
+
+This app supports multiple stores in one database. Each connected Shopify shop gets its own numeric **Store ID**.
+
+| Store ID | Domain | Products | Notes |
+| --- | --- | --- | --- |
+| `1` | `demo-glow-beauty.myshopify.com` | 8 demo products | Auto-seeded on first deploy (Ceramide Barrier Repair Cream, Gentle Foaming Cleanser, etc.) — **not** from your Shopify admin |
+| `3` | `glow-beauty-dev-dmf5uuka.myshopify.com` | 15 live products | **Your real connected Shopify store** — use this ID in the dashboard |
+
+### Which Store ID to use
+
+Use **Store ID `3`** for:
+
+- Dashboard → Products
+- Dashboard → Knowledge uploads
+- Dashboard → Settings → Sync now
+- Chat accuracy (set `DEMO_STORE_ID=3` on the API service in Render)
+
+To confirm your Store ID: open **Settings** → **Connected stores** and note the `id` next to your shop domain.
+
+### Adding products
+
+Products are added in **Shopify Admin**, not in this app.
+
+**Option A — Bulk import (120 products, BDT pricing)**
+
+1. Set store currency to **BDT**: Shopify Admin → **Settings** → **Store details** → **Store currency** → Bangladeshi Taka
+2. **Products** → **Import** → upload `knowledge-base/glow-beauty-products-import.csv`
+3. Dashboard → **Settings** → Store ID `3` → **Sync now**
+4. Dashboard → **Products** → Store ID `3` to verify
+
+Prices in the CSV are in **BDT** (converted at 110 BDT/USD, rounded for retail). Regenerate with:
+
+```bash
+py -3 scripts/generate_product_csv.py
+```
+
+**Option B — Add one product manually**
+
+1. Shopify Admin → **Products** → **Add product**
+2. Fill title, description, price (in BDT), tags, and product type (tags help AI matching)
+3. Dashboard → **Settings** → Store ID `3` → **Sync now**
+4. Dashboard → **Products** → Store ID `3` to verify
+
+### Removing demo products
+
+There is no in-app delete for products. Demo items on Store ID `1` can be ignored, or removed from Postgres if you no longer need the demo store. Always confirm the store domain before deleting data.
 
 ## Project Structure
 
@@ -30,16 +97,21 @@ Production-ready AI customer support SaaS for Shopify beauty and skincare mercha
 SkinCare-AI-Agent/
 ├── backend/                 # FastAPI app, agents, RAG, Shopify routes
 │   └── app/
-│       ├── api/routes/      # chat, conversations, shopify, analytics, auth
+│       ├── api/routes/      # chat, conversations, shopify, knowledge, auth
 │       ├── db/              # models, init/seed, session
-│       └── services/        # LangGraph agent + RAG retrieval
+│       └── services/        # LangGraph agent, RAG, Shopify sync
 ├── frontend/                # Next.js app and dashboard UI
-├── docker-compose.yml       # postgres + backend + frontend
-├── .env.example             # root env template for Docker
+├── knowledge-base/          # Policy/FAQ files + Shopify product import CSV (BDT)
+├── scripts/                 # generate_product_csv.py and production sync helpers
+├── docker-compose.yml       # Local: postgres + backend + frontend
+├── docker-compose.prod.yml  # Production Docker Compose
+├── render.yaml              # Render Blueprint (free tier)
+├── DEPLOYMENT_LOG.txt       # Full deployment + troubleshooting guide
+├── render-env-values.txt    # Production env reference
 └── README.md
 ```
 
-## Quick Start (Docker)
+## Quick Start (Docker — Local)
 
 ### 1. Create environment file
 
@@ -69,55 +141,48 @@ docker compose up --build
 - API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 - Health check: [http://localhost:8000/health](http://localhost:8000/health)
 
+Locally, the demo store uses **Store ID `1`** with 8 seeded skincare products.
+
 ## Try These Prompts
 
 Use the chat UI to test common flows:
 
 - `I have oily, acne-prone skin. What moisturizer should I use?`
 - `Can I use Niacinamide with Vitamin C?`
-- `Where is my order #3452?`
 - `Do you ship internationally?`
+- `What is your return policy?`
 - `I want a simple morning and night routine.`
 - `I have a severe rash and need a diagnosis.`
+
+Upload the files in `knowledge-base/` via **Dashboard → Knowledge** (Store ID `3`) for better policy and ingredient answers.
 
 ## AI Architecture
 
 LangGraph orchestrates specialized routing:
 
-1. Intent Classifier
-2. Product Knowledge Agent
-3. Order Support Agent
-4. Policy & FAQ Agent
-5. Recommendation Agent
-6. Human Escalation Agent
+1. Intent Classifier (LLM + regex fallback)
+2. Product Recommendation Agent
+3. Ingredient Question Agent
+4. Order Support Agent
+5. Policy & FAQ Agent (topic-aware: shipping vs returns)
+6. Medical Safety + Human Escalation Agents
 
 Each response uses:
 
-- Store product catalog from PostgreSQL
-- Knowledge chunks and embeddings from uploaded/seeded documents
-- Conversation profile memory stored on the conversation record
+- Store product catalog from PostgreSQL (synced from Shopify)
+- Knowledge chunks and embeddings from uploaded documents
+- Conversation profile memory (skin type, concerns, preferences)
 - Safety rules for medical and escalation scenarios
 
 ## Database
 
 On startup the backend:
 
-1. Enables the `vector` extension
+1. Enables the `vector` extension (with graceful fallback if unavailable)
 2. Creates all tables
-3. Seeds a demo Shopify store: `Glow Beauty Co.`
-4. Seeds 8 skincare products, 4 policy/FAQ documents, 1 demo order, and starter conversations
+3. Seeds demo data when the database is empty (`ensure_minimum_store()`), or when `SEED_DEMO_DATA=true`
 
-Main tables:
-
-- `stores`
-- `products`
-- `customers`
-- `orders`
-- `conversations`
-- `messages`
-- `documents`
-- `embeddings`
-- `escalations`
+Main tables: `stores`, `products`, `customers`, `orders`, `conversations`, `messages`, `documents`, `embeddings`, `escalations`
 
 ## API Endpoints
 
@@ -127,18 +192,23 @@ Main tables:
 - `POST /api/chat/message`
 - `GET /api/chat/{conversation_id}`
 
-### Admin Conversations
+### Admin
 
 - `GET /api/conversations`
 - `GET /api/conversations/{id}`
 - `POST /api/conversations/message`
 - `POST /api/conversations/escalate`
+- `GET /api/knowledge`
+- `POST /api/knowledge/upload`
+- `DELETE /api/knowledge/{document_id}`
 
-### Shopify
+### Shopify & Auth
 
-- `GET /api/shopify/oauth/connect`
-- `POST /api/shopify/sync`
-- `GET /api/shopify/products`
+- `GET /api/auth/start` — begin Shopify OAuth
+- `GET /api/auth/callback` — OAuth callback
+- `GET /api/auth/status` — list connected stores (admin)
+- `POST /api/shopify/sync?store_id=3` — sync catalog from Shopify
+- `GET /api/shopify/products?store_id=3` — list synced products
 
 ## Local Development Without Docker
 
@@ -182,15 +252,23 @@ docker compose up postgres -d
 | `SHOPIFY_API_KEY` | Shopify app API key |
 | `SHOPIFY_API_SECRET` | Shopify app secret |
 | `SHOPIFY_APP_URL` | App URL for OAuth callbacks |
-| `DEMO_STORE_ID` | Demo store id, default `1` |
+| `SHOPIFY_SCOPES` | Default: `read_products,read_orders,read_content` |
+| `ADMIN_API_KEY` | Dashboard admin key |
+| `JWT_SECRET` | Token signing secret |
+| `DEMO_STORE_ID` | Default store for chat when none specified (use `3` in production) |
+| `SEED_DEMO_DATA` | `true` locally; `false` on Render production |
 
-### Backend (`backend/.env`)
+### Production tuning (Render → skincare-api)
 
-| Variable | Description |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `PGVECTOR_DIMENSION` | Embedding vector size |
-| `SHOPIFY_SCOPES` | Shopify OAuth scopes |
+```env
+OPENAI_CHAT_MODEL=gpt-4o
+OPENAI_INTENT_MODEL=gpt-4o-mini
+RAG_TOP_K=6
+PRODUCT_TOP_K=6
+CHAT_HISTORY_LIMIT=16
+DEMO_STORE_ID=3
+SEED_DEMO_DATA=false
+```
 
 ### Frontend (`frontend/.env.local`)
 
@@ -199,153 +277,95 @@ docker compose up postgres -d
 | `NEXT_PUBLIC_API_URL` | Backend base URL |
 | `NEXT_PUBLIC_SHOPIFY_APP_URL` | Shopify app URL |
 
-## Production Deployment Log
+## Deploy on Render
 
-All implementation steps and the manual production checklist live in:
-
-`DEPLOYMENT_LOG.txt`
-
-## Production Deployment Roadmap
-
-You are past local demo. Move to production in this order:
-
-### Phase 1 — Production infrastructure (now)
-
-1. Push the repo to GitHub/GitLab/Bitbucket.
-2. Set production secrets:
-   - `OPENAI_API_KEY`
-   - `SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET`
-   - `POSTGRES_PASSWORD`
-   - `CORS_ORIGINS` (your real frontend URL)
-   - `NEXT_PUBLIC_API_URL` (your public API URL)
-3. Deploy with one of:
-   - **Render Blueprint**: use the included `render.yaml`
-   - **Docker Compose production**: `docker compose -f docker-compose.prod.yml up --build -d`
-4. Use production Dockerfiles:
-   - `backend/Dockerfile.prod` (no hot reload, 2 workers)
-   - `frontend/Dockerfile.prod` (Next.js build + `npm start`)
-5. Point a custom domain and HTTPS to frontend + API.
-
-### Phase 2 — Real Shopify integration
-
-1. Create a Shopify Partner app and configure OAuth redirect URLs.
-2. Implement full OAuth token exchange in `backend/app/api/routes/auth.py`.
-3. Build product/order/customer sync in `backend/app/services/shopify_sync.py`.
-4. Schedule sync jobs (cron or background worker) so catalog data stays current.
-5. Replace demo seed data with live store records per tenant.
-
-### Phase 3 — SaaS hardening
-
-1. Multi-tenant isolation by `store_id` on every query.
-2. Admin authentication (Shopify session or JWT for dashboard).
-3. Rate limiting and abuse protection on `/api/chat/*`.
-4. File upload pipeline for PDFs/manuals with async embedding jobs.
-5. Observability: structured logs, error tracking (Sentry), AI latency metrics.
-6. Backups and migration strategy for PostgreSQL.
-
-### Phase 4 — Go-to-market
-
-1. Shopify App Store listing and compliance review.
-2. Billing (Shopify Billing API or Stripe).
-3. Merchant onboarding flow: connect store → sync catalog → upload policies → enable chat widget.
-4. Embed chat widget on storefront theme or checkout extension.
-
-### Recommended production `.env`
-
-```env
-OPENAI_API_KEY=sk-...
-OPENAI_CHAT_MODEL=gpt-4o
-OPENAI_INTENT_MODEL=gpt-4o-mini
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-SHOPIFY_API_KEY=...
-SHOPIFY_API_SECRET=...
-SHOPIFY_APP_URL=https://app.yourdomain.com
-NEXT_PUBLIC_API_URL=https://api.yourdomain.com
-CORS_ORIGINS=https://app.yourdomain.com
-POSTGRES_PASSWORD=strong-password
-ENVIRONMENT=production
-```
-
-### Deploy on Render
-
-1. Connect your Git repo in Render.
+1. Connect the GitHub repo (`NabilaShova/SkinCare-AI-Agent`, branch `main`).
 2. Choose **New Blueprint** and select `render.yaml`.
-3. Fill secret env vars when prompted.
-4. Ensure `DATABASE_URL` uses the `postgresql+psycopg://` prefix if needed.
-5. Set `NEXT_PUBLIC_API_URL` to the deployed API service URL.
+3. Enter secrets: `OPENAI_API_KEY`, `ADMIN_API_KEY`, `JWT_SECRET`, Shopify credentials.
+4. Set env URLs after first deploy (see `render-env-values.txt`).
+5. Redeploy **skincare-frontend** after changing any `NEXT_PUBLIC_*` variable.
+6. Connect Shopify store via **Settings** → enter shop domain → authorize.
+7. Set `DEMO_STORE_ID` to your connected store ID (e.g. `3`).
+8. Upload knowledge files from `knowledge-base/` and run **Sync now**.
 
 ## Chat Accuracy Improvements
 
-Recent upgrades in this repo:
+Implemented in this repo:
 
-- **LLM intent classification** with regex fallback
-- **Intent-specific prompts** and temperature tuning per agent type
-- **Profile-aware retrieval** (skin type, concerns, budget remembered across turns)
-- **Hybrid product search** (semantic embeddings + keyword + profile weighting)
-- **Product catalog embeddings** indexed at startup
-- **Conversation-aware retrieval queries** using recent user messages
-- **Grounding rules** so the model only uses provided catalog/policy/order context
-- **Fixed order lookup** so the bot no longer guesses order `#3452` without a number
+- LLM intent classification with regex fallback
+- Intent-specific prompts and temperature tuning
+- Topic-aware policy answers (shipping vs returns)
+- Profile-aware retrieval (skin type, concerns, budget)
+- Hybrid product search (semantic + keyword + profile weighting)
+- Product catalog embeddings indexed after sync
+- Grounding rules so the model uses only provided context
 
 To maximize accuracy in production:
 
-1. Set `OPENAI_API_KEY` (required for best results).
-2. Use `OPENAI_CHAT_MODEL=gpt-4o` for final responses.
-3. Keep `OPENAI_EMBEDDING_MODEL=text-embedding-3-small` for RAG.
-4. Upload real store policies and ingredient guides into the knowledge base.
-5. Sync live Shopify products so recommendations match inventory.
-6. Restart backend after deploy so `ensure_product_indexes()` rebuilds product embeddings.
+1. Set `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL=gpt-4o`
+2. Set `DEMO_STORE_ID=3` so chat uses your live catalog
+3. Upload policies from `knowledge-base/` (Store ID `3`)
+4. Sync Shopify after adding or editing products
+5. Re-upload knowledge files after backend updates (improved chunking)
 
 ## Current Status
 
-Implemented now:
+### Completed
 
-- Dockerized local development
-- Production Dockerfiles and `docker-compose.prod.yml`
-- Render Blueprint (`render.yaml`)
-- Customer chat frontend
-- Database schema, seed data, and pgvector extension
-- LangGraph-based agent routing with improved accuracy
-- RAG retrieval over seeded knowledge documents and product embeddings
-- Product recommendation and order support using demo data
-- Admin conversation viewer wired to the database
+- Dockerized local development + production Dockerfiles
+- Render Blueprint deployed (free tier)
+- Customer chat frontend with error handling and starter prompts
+- LangGraph agent routing + RAG pipeline
+- Shopify OAuth connect and product sync
+- Partial sync when customer API returns 403 (products still sync)
+- Knowledge upload API + dashboard UI
+- Admin API key auth and rate limiting
+- Policy FAQ routing fix (distinct shipping vs return answers)
+- Production URLs live on Render
+- Live Shopify dev store connected (15 products, Store ID `3`)
 
-Planned next:
+### Optional next steps
 
-- Full Shopify OAuth onboarding and live product sync
-- Document upload UI and async embedding pipeline
-- Real-time human takeover workflow
-- Multi-tenant store isolation and production auth
-- Analytics backed by live conversation metrics
+- Upload full knowledge-base pack to Store ID `3`
+- Shopify Protected Customer Data approval for full customer/order sync
+- Scheduled sync (`scripts/production_sync.ps1` / `.sh`)
+- Custom domain and paid Render tier (faster cold starts)
+- Shopify App Store listing and billing
+- Default dashboard Store ID to connected store instead of `1`
 
 ## Troubleshooting
 
-### Chat returns generic fallback responses
+### Dashboard shows demo products (Ceramide Cream, Foaming Cleanser, etc.)
 
-Set `OPENAI_API_KEY` in `.env`, then restart:
+You are viewing **Store ID `1`** (demo catalog). Switch to **Store ID `3`** on the Products page, or check **Settings → Connected stores** for your real store ID.
 
-```bash
-docker compose down
-docker compose up --build
-```
+### Chat recommends wrong or demo products
+
+Set `DEMO_STORE_ID=3` on the Render API service and redeploy. Run **Sync now** for Store ID `3`.
+
+### Chat returns generic or garbled policy answers
+
+1. Confirm `OPENAI_API_KEY` is set on Render
+2. Upload knowledge files from `knowledge-base/` to Store ID `3`
+3. Re-upload after backend deploys (chunk format improvements)
+
+### Shopify sync 403 on customers
+
+Expected without Shopify Protected Customer Data approval. Products still sync; customers/orders are skipped with warnings.
 
 ### Frontend cannot reach backend
 
-Confirm `NEXT_PUBLIC_API_URL=http://localhost:8000` and that the backend is healthy at [http://localhost:8000/health](http://localhost:8000/health).
+Confirm `NEXT_PUBLIC_API_URL` matches the live API URL and redeploy the frontend after changes.
 
-### Database reset
+### Database reset (local only)
 
 ```bash
 docker compose down -v
 docker compose up --build
 ```
 
-This recreates PostgreSQL and reseeds demo data.
-
-### Re-index product embeddings after upgrade
-
-Restart the backend container. On startup it runs `ensure_product_indexes()` for all stores.
+This recreates PostgreSQL and reseeds demo data locally.
 
 ## License
 
-Private project scaffold for a Shopify beauty support SaaS platform.
+Private project for a Shopify beauty support SaaS platform.
