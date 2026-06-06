@@ -11,463 +11,199 @@ Goal: Complete production readiness with Shopify OAuth, live sync, security,
 --------------------------------------------------------------------------------
 PROGRESS SUMMARY
 --------------------------------------------------------------------------------
-CODE IMPLEMENTATION:     [##########] 100% COMPLETE (Steps 01-11)
-GIT PUSH TO GITHUB:      [##########] 100% COMPLETE (commit 4599b27)
-RENDER DEPLOYMENT:       [####------]  40% IN PROGRESS (Dashboard step needed)
+CODE IMPLEMENTATION:     [##########] 100% COMPLETE
+GIT PUSH TO GITHUB:      [##########] 100% COMPLETE
+RENDER BLUEPRINT:        [##########] 100% DEPLOYED (free tier)
+RENDER ENV + REDEPLOY:   [######----]  60% YOU ARE HERE (Step C11)
 SHOPIFY APP SETUP:       [          ]   0% NOT STARTED
 SHOPIFY STORE CONNECT:   [          ]   0% NOT STARTED
-PRODUCTION OPERATIONS:   [          ]   0% NOT STARTED
 
-RECOMMENDED ORDER:
-  1) Deploy to Render first  -> get real HTTPS frontend + API URLs
-  2) Create Shopify app      -> use those URLs in Partner Dashboard
-  3) Update Render env vars  -> add Shopify credentials
-  4) Connect dev store       -> test OAuth end-to-end
+YOUR LIVE URLS (confirmed working 2026-06-06):
+  API:      https://skincare-api-68pp.onrender.com
+  Frontend: https://skincare-frontend-z72h.onrender.com
+  Health:   https://skincare-api-68pp.onrender.com/health  -> {"status":"ok"}
+  Chat:     https://skincare-frontend-z72h.onrender.com/chat
+  Settings: https://skincare-frontend-z72h.onrender.com/dashboard/settings
 
-================================================================================
-WHY DEPLOY TO RENDER BEFORE CREATING THE SHOPIFY APP?
-================================================================================
+SHOPIFY REDIRECT URL (use in Partner Dashboard):
+  https://skincare-api-68pp.onrender.com/api/auth/callback
 
-YES — deploy/host on Render FIRST. Reasons:
-
-1. Shopify OAuth requires a real, public HTTPS callback URL.
-   localhost URLs do not work for production OAuth (only ngrok works locally).
-
-2. In Part 3 (Create app), Shopify asks for an "App URL" — that is your
-   FRONTEND URL. You cannot know this URL until something is deployed.
-
-3. The redirect URL must match BACKEND_PUBLIC_URL exactly:
-   {BACKEND_PUBLIC_URL}/api/auth/callback
-
-4. After Render deploy you get URLs like:
-   Frontend: https://skincare-frontend.onrender.com
-   Backend:  https://skincare-api.onrender.com
-
-5. You can add custom domains later (app.yourdomain.com, api.yourdomain.com)
-   and update Shopify settings once — no need to guess URLs upfront.
+Quick copy file for env vars: render-env-values.txt
 
 ================================================================================
-HOW TO GET THE FRONTEND URL (AND API URL)
+OPENAI API KEY — DETAILED GENERATION STEPS
 ================================================================================
 
-OPTION A — RENDER DEFAULT URLS (easiest, use this first)
----------------------------------------------------------
-After deploying via render.yaml, open Render Dashboard -> each service -> top
-of page shows "URL".
+WHAT IT IS:
+  Secret key from OpenAI that powers AI chat responses and embeddings.
+  Format: sk-proj-... or sk-...
 
-  skincare-frontend service URL  = FRONTEND_PUBLIC_URL
-                                   = SHOPIFY_APP_URL
-                                   = App URL in Shopify Partner Dashboard
-                                   Example: https://skincare-frontend.onrender.com
+STEP-BY-STEP:
+[ ] 1. Open https://platform.openai.com
+[ ] 2. Sign up or log in
+[ ] 3. Add billing (required for API usage):
+        Profile -> Billing -> Add payment method
+        OpenAI is pay-as-you-go (a few dollars covers testing)
+[ ] 4. Open https://platform.openai.com/api-keys
+[ ] 5. Click "Create new secret key"
+[ ] 6. Name: Skincare-AI-Render
+[ ] 7. Permissions: All (or Restricted with model access)
+[ ] 8. Click Create -> COPY THE KEY IMMEDIATELY
+        (You cannot view it again after closing the dialog)
+[ ] 9. Paste into Render -> skincare-api -> Environment:
+        OPENAI_API_KEY = sk-proj-xxxxxxxx...
+[ ] 10. Never commit this key to GitHub
 
-  skincare-api service URL       = BACKEND_PUBLIC_URL
-                                   = NEXT_PUBLIC_API_URL
-                                   Example: https://skincare-api.onrender.com
+COST NOTE:
+  - gpt-4o (set in render.yaml) costs more than gpt-4o-mini
+  - Testing chat: typically pennies to a few dollars
+  - Set usage limits at: platform.openai.com -> Settings -> Limits
 
-  Shopify redirect URL           = https://skincare-api.onrender.com/api/auth/callback
-
-OPTION B — CUSTOM DOMAIN (later, optional)
-------------------------------------------
-In Render Dashboard -> service -> Settings -> Custom Domains:
-  app.yourdomain.com   -> skincare-frontend
-  api.yourdomain.com   -> skincare-api
-
-Then update ALL of these to match:
-  FRONTEND_PUBLIC_URL=https://app.yourdomain.com
-  BACKEND_PUBLIC_URL=https://api.yourdomain.com
-  NEXT_PUBLIC_API_URL=https://api.yourdomain.com
-  CORS_ORIGINS=https://app.yourdomain.com
-  SHOPIFY_APP_URL=https://app.yourdomain.com
-  Shopify App URL: https://app.yourdomain.com
-  Shopify Redirect: https://api.yourdomain.com/api/auth/callback
-
-OPTION C — LOCAL DEV ONLY (not recommended for first Shopify setup)
---------------------------------------------------------------------
-Use ngrok on port 8000 for backend callback only.
-Frontend can stay on http://localhost:3000.
-More complex; use Render first instead.
+IF YOU SKIP OPENAI_API_KEY:
+  App still runs but chat uses basic fallback (less accurate).
 
 ================================================================================
-CODE IMPLEMENTATION LOG (COMPLETED)
+ADMIN_API_KEY & JWT_SECRET — DETAILED GENERATION STEPS
 ================================================================================
 
-[STEP 01] DEPLOYMENT LOG CREATED
-- Created DEPLOYMENT_LOG.txt to track every production step.
+ADMIN_API_KEY — your dashboard password
+  Used when saving key in /dashboard/settings and for sync/upload APIs.
 
-[STEP 02] PRODUCTION CONFIGURATION EXPANDED
-- Updated backend/app/core/config.py with:
-  - BACKEND_PUBLIC_URL / FRONTEND_PUBLIC_URL
-  - ADMIN_API_KEY / JWT_SECRET
-  - SHOPIFY_API_VERSION
-  - RATE_LIMIT_CHAT_PER_MINUTE / RATE_LIMIT_ADMIN_PER_MINUTE
-  - SEED_DEMO_DATA toggle
+JWT_SECRET — backend signing key (different from ADMIN_API_KEY)
+  Used internally to sign admin tokens. Never shown in the UI.
 
-[STEP 03] MULTI-TENANT DATABASE HARDENING
-- Updated backend/app/db/models.py:
-  - Store: scopes, last_synced_at, is_active
-  - Product/Customer/Order: per-store unique constraints
-  - Customer: store_id foreign key added
+GENERATE ON WINDOWS (PowerShell) — run TWICE, use each output separately:
+  -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 40 | ForEach-Object {[char]$_})
 
-[STEP 04] SHOPIFY OAUTH IMPLEMENTED
-- backend/app/services/shopify_oauth.py (HMAC, install URL, token exchange)
-- backend/app/api/routes/auth.py (start, callback, admin login, status)
+OR use a password manager -> Generate 40-character random string.
 
-[STEP 05] SHOPIFY API CLIENT + LIVE SYNC IMPLEMENTED
-- backend/app/services/shopify_client.py
-- backend/app/services/shopify_sync.py (products, customers, orders)
-- backend/app/api/routes/shopify.py (sync, sync-all, stores, products)
+ENTER IN RENDER BLUEPRINT (or skincare-api Environment):
+  ADMIN_API_KEY = (your 40-char random string #1)
+  JWT_SECRET    = (your 40-char random string #2)
 
-[STEP 06] SECURITY + RATE LIMITING
-- Admin API key, JWT, per-IP rate limiting on chat/admin routes
+SAVE ADMIN_API_KEY somewhere safe — you need it again at:
+  https://skincare-frontend-z72h.onrender.com/dashboard/settings
 
-[STEP 07] KNOWLEDGE BASE UPLOAD PIPELINE
-- Upload txt/md/pdf, chunk, embed, delete
-
-[STEP 08] FRONTEND PRODUCTION ADMIN UI
-- Settings (connect + sync), Knowledge (upload), Products (catalog)
-
-[STEP 09] PRODUCTION AUTOMATION SCRIPTS
-- scripts/production_sync.sh / production_sync.ps1
-
-[STEP 10] DEPENDENCIES FOR PRODUCTION UPLOADS
-- httpx, pypdf, python-multipart
-
-[STEP 11] PRODUCTION DEPLOYMENT ARTIFACTS
-- docker-compose.prod.yml, render.yaml, .env.example, shopify.app.toml.example
-
-[STEP 12] RENDER COMPATIBILITY FIXES (2026-06-06)
-- backend/app/db/session.py: normalize postgresql:// -> postgresql+psycopg://
-- backend/app/db/init_db.py: graceful pgvector extension fallback for Render Postgres
-- backend/Dockerfile.prod: bind to Render PORT env var
-- render.yaml: frontend uses Node runtime (NEXT_PUBLIC_* available at build time)
-- scripts/render_blueprint_launch.ps1 added
-
-[STEP 13] GIT PUSH COMPLETED (2026-06-06)
-- Remote: https://github.com/NabilaShova/SkinCare-AI-Agent.git
-- Branch: main
-- Commit: 4599b27 "Add production deployment, Shopify OAuth, and Render Blueprint"
-- Status: pushed successfully to origin/main
+DO NOT USE IN PRODUCTION:
+  dev-admin-key-change-me
+  dev-jwt-secret-change-me
 
 ================================================================================
-PHASE C — DEPLOY TO RENDER FIRST (DO THIS BEFORE SHOPIFY APP)
+RENDER BLUEPRINT — DETAILED STEPS (COMPLETED)
 ================================================================================
 
-[x] C1. Push repo to GitHub/GitLab/Bitbucket
-      DONE — https://github.com/NabilaShova/SkinCare-AI-Agent (main @ 4599b27)
+[x] C1. Push repo to GitHub
+      https://github.com/NabilaShova/SkinCare-AI-Agent (main)
 
-[ ] C2. Log in to https://dashboard.render.com
+[x] C2. Log in to https://dashboard.render.com
 
-[ ] C3. Click "New" -> "Blueprint"
+[x] C3. New -> Blueprint
 
-[ ] C4. Connect your Git repository:
-      https://github.com/NabilaShova/SkinCare-AI-Agent
-      (Select branch: main)
+[x] C4. Connect repo NabilaShova/SkinCare-AI-Agent, branch main
 
-[ ] C5. Render detects render.yaml and shows 3 resources:
-        - skincare-db (PostgreSQL)
-        - skincare-api (backend)
-        - skincare-frontend (frontend)
+[x] C5. Blueprint name: Skincare AI Agent (or your choice)
+      Resources detected from render.yaml (free tier):
+        - skincare-db
+        - skincare-api
+        - skincare-frontend
 
-[ ] C6. When prompted, enter secret environment variables:
+[x] C6. Enter secrets at deploy:
+      OPENAI_API_KEY  = (from OpenAI section above)
+      ADMIN_API_KEY   = (from ADMIN/JWT section above)
+      JWT_SECRET      = (from ADMIN/JWT section above)
 
-      REQUIRED NOW (deploy will fail without these):
-      OPENAI_API_KEY          = sk-...
-      ADMIN_API_KEY           = generate 32+ char random string
-      JWT_SECRET              = generate 32+ char random string
+[x] C7. Click "Deploy Blueprint" (not "Apply")
+      Waited for all 3 services to build
 
-      SET AFTER FIRST DEPLOY (when you have Render URLs):
-      BACKEND_PUBLIC_URL      = https://skincare-api.onrender.com
-      FRONTEND_PUBLIC_URL     = https://skincare-frontend.onrender.com
-      NEXT_PUBLIC_API_URL     = https://skincare-api.onrender.com
-      NEXT_PUBLIC_SHOPIFY_APP_URL = https://skincare-frontend.onrender.com
-      CORS_ORIGINS            = https://skincare-frontend.onrender.com
-      SHOPIFY_APP_URL         = https://skincare-frontend.onrender.com
+[x] C8. Live URLs copied:
+      FRONTEND: https://skincare-frontend-z72h.onrender.com
+      API:      https://skincare-api-68pp.onrender.com
 
-      SET LATER (Phase A — Shopify app):
-      SHOPIFY_API_KEY         = (from Partner Dashboard)
-      SHOPIFY_API_SECRET      = (from Partner Dashboard)
+[x] C9. Backend health verified:
+      https://skincare-api-68pp.onrender.com/health -> {"status":"ok"}
 
-[ ] C7. Click "Apply" and wait for all 3 services to deploy (5-15 min)
+[x] C10. Frontend landing page verified:
+      https://skincare-frontend-z72h.onrender.com loads correctly
 
-[ ] C8. Copy your live URLs from Render Dashboard:
+[ ] C11. UPDATE ENV VARS WITH YOUR REAL URLS (DO THIS NOW)
+      See render-env-values.txt for copy-paste reference.
 
-      FRONTEND URL (skincare-frontend):
-      _______________________________________________
-      Example: https://skincare-frontend.onrender.com
+      skincare-api -> Environment -> Add/Update:
+        BACKEND_PUBLIC_URL  = https://skincare-api-68pp.onrender.com
+        FRONTEND_PUBLIC_URL = https://skincare-frontend-z72h.onrender.com
+        CORS_ORIGINS        = https://skincare-frontend-z72h.onrender.com
+        SHOPIFY_APP_URL     = https://skincare-frontend-z72h.onrender.com
 
-      BACKEND URL (skincare-api):
-      _______________________________________________
-      Example: https://skincare-api.onrender.com
+      skincare-frontend -> Environment -> Add/Update:
+        NEXT_PUBLIC_API_URL         = https://skincare-api-68pp.onrender.com
+        NEXT_PUBLIC_SHOPIFY_APP_URL = https://skincare-frontend-z72h.onrender.com
 
-[ ] C9. Verify backend health:
-      Open: https://skincare-api.onrender.com/health
-      Expected: {"status":"ok"}
+      THEN: skincare-frontend -> Manual Deploy -> Deploy latest commit
+      (Required because NEXT_PUBLIC_* are baked in at build time)
 
-[ ] C10. Verify frontend loads:
-      Open: https://skincare-frontend.onrender.com
-      Expected: landing page with "Chat with AI advisor" button
+[ ] C12. Post-env verification:
+      - Open https://skincare-frontend-z72h.onrender.com/chat
+      - Send a test message (may take 30-60s first time on free tier)
+      - Open https://skincare-frontend-z72h.onrender.com/dashboard/settings
+      - Save ADMIN_API_KEY and confirm no API errors
 
-[ ] C11. Update Render env vars with your real URLs:
-
-      skincare-api service -> Environment:
-        BACKEND_PUBLIC_URL  = https://skincare-api.onrender.com
-        FRONTEND_PUBLIC_URL = https://skincare-frontend.onrender.com
-        CORS_ORIGINS        = https://skincare-frontend.onrender.com
-        SHOPIFY_APP_URL     = https://skincare-frontend.onrender.com
-        DATABASE_URL        = (auto from Render DB — may need prefix fix)
-          If connection fails, change postgresql:// to postgresql+psycopg://
-
-      skincare-frontend service -> Environment:
-        NEXT_PUBLIC_API_URL         = https://skincare-api.onrender.com
-        NEXT_PUBLIC_SHOPIFY_APP_URL = https://skincare-frontend.onrender.com
-
-      After changing frontend env vars, trigger a manual redeploy of
-      skincare-frontend (NEXT_PUBLIC_* vars are baked in at build time).
-
-[ ] C12. Mark complete:
-      RENDER DEPLOYMENT: [##########] 100%
+[ ] C13. Mark Render env setup complete
 
 ================================================================================
-PHASE A — SHOPIFY PARTNER APP (AFTER RENDER DEPLOY)
+PHASE A — SHOPIFY PARTNER APP (NEXT AFTER C11)
 ================================================================================
 
-Use your Render URLs from Phase C8. Example below uses onrender.com URLs.
-Replace with your actual URLs or custom domains.
+YOUR EXACT VALUES:
+  App URL:       https://skincare-frontend-z72h.onrender.com
+  Redirect URL:  https://skincare-api-68pp.onrender.com/api/auth/callback
 
-  FRONTEND URL = https://skincare-frontend.onrender.com
-  BACKEND URL  = https://skincare-api.onrender.com
-  REDIRECT URL = https://skincare-api.onrender.com/api/auth/callback
-
---------------------------------------------------------------------------------
-A1. CREATE PARTNER ACCOUNT
---------------------------------------------------------------------------------
-[ ] A1.1  Open https://dev.shopify.com/dashboard
-[ ] A1.2  Sign in or click "Sign up" to create a free Partner account
-[ ] A1.3  Complete profile if prompted (name, country, purpose)
-
---------------------------------------------------------------------------------
-A2. CREATE A DEVELOPMENT STORE (for testing)
---------------------------------------------------------------------------------
-[ ] A2.1  Left sidebar -> "Stores" or "Dev stores"
-[ ] A2.2  Click "Add store" -> "Create development store"
-[ ] A2.3  Choose "Create a store to test and build"
-[ ] A2.4  Store name: e.g. glow-beauty-dev
-[ ] A2.5  Note your store domain:
-          _______________________________________________
-          Example: glow-beauty-dev.myshopify.com
-
---------------------------------------------------------------------------------
-A3. CREATE THE SHOPIFY APP
---------------------------------------------------------------------------------
-[ ] A3.1  Left sidebar -> "Apps"
-[ ] A3.2  Click "Create app"
-[ ] A3.3  Select "Create app manually"
-[ ] A3.4  App name: Skincare AI Support Agent
-[ ] A3.5  App URL (THIS IS YOUR FRONTEND URL):
-          Enter: https://skincare-frontend.onrender.com
-          (Use YOUR skincare-frontend Render URL from Phase C8)
-[ ] A3.6  Click "Create"
-
-  WHAT IS "APP URL"?
-  - It is where Shopify sends merchants after install
-  - In this project it equals FRONTEND_PUBLIC_URL / SHOPIFY_APP_URL
-  - It is NOT the API URL
-  - It is NOT the redirect/callback URL
-
---------------------------------------------------------------------------------
-A4. SET REDIRECT URL (OAUTH CALLBACK)
---------------------------------------------------------------------------------
-[ ] A4.1  Open your new app -> "Configuration" (or "App setup")
-[ ] A4.2  Find "Allowed redirection URL(s)"
-[ ] A4.3  Add EXACTLY (no trailing slash):
-          https://skincare-api.onrender.com/api/auth/callback
-          (Use YOUR skincare-api Render URL + /api/auth/callback)
-[ ] A4.4  Click "Save"
-
-  COMMON MISTAKES:
-  X  https://skincare-api.onrender.com/api/auth/callback/  (trailing slash)
-  X  https://skincare-frontend.onrender.com/api/auth/callback  (wrong host)
-  X  http://localhost:8000/api/auth/callback  (not public HTTPS)
-
---------------------------------------------------------------------------------
-A5. SET API SCOPES
---------------------------------------------------------------------------------
-[ ] A5.1  In app settings find "API access" or "Scopes"
-[ ] A5.2  Enable these scopes:
-          - read_products
-          - read_orders
-          - read_customers
-          - read_content
-[ ] A5.3  Save / release configuration if prompted
-
---------------------------------------------------------------------------------
-A6. COPY API CREDENTIALS
---------------------------------------------------------------------------------
-[ ] A6.1  Open "API credentials" (or "Client credentials")
-[ ] A6.2  Copy Client ID:
-          SHOPIFY_API_KEY = _______________________________________________
-[ ] A6.3  Copy Client secret (click reveal):
-          SHOPIFY_API_SECRET = _______________________________________________
-
---------------------------------------------------------------------------------
-A7. ADD CREDENTIALS TO RENDER
---------------------------------------------------------------------------------
-[ ] A7.1  Render Dashboard -> skincare-api -> Environment
-[ ] A7.2  Set:
-          SHOPIFY_API_KEY    = (Client ID from A6.2)
-          SHOPIFY_API_SECRET = (Client secret from A6.3)
-          SHOPIFY_APP_URL    = https://skincare-frontend.onrender.com
-          BACKEND_PUBLIC_URL = https://skincare-api.onrender.com
-          FRONTEND_PUBLIC_URL= https://skincare-frontend.onrender.com
-          CORS_ORIGINS       = https://skincare-frontend.onrender.com
-[ ] A7.3  Save -> skincare-api redeploys automatically
-
-[ ] A7.4  Optional: copy shopify.app.toml.example -> shopify.app.toml
-          Update client_id, application_url, redirect_urls with your values
-
-[ ] A7.5  Mark complete:
-          SHOPIFY APP SETUP: [##########] 100%
+[ ] A1. Create Partner account: https://dev.shopify.com/dashboard
+[ ] A2. Create dev store (e.g. glow-beauty-dev.myshopify.com)
+[ ] A3. Apps -> Create app manually
+        Name: Skincare AI Support Agent
+        App URL: https://skincare-frontend-z72h.onrender.com
+[ ] A4. Allowed redirection URL:
+        https://skincare-api-68pp.onrender.com/api/auth/callback
+[ ] A5. Scopes: read_products, read_orders, read_customers, read_content
+[ ] A6. Copy Client ID -> SHOPIFY_API_KEY
+        Copy Client secret -> SHOPIFY_API_SECRET
+[ ] A7. Render -> skincare-api -> Environment:
+        SHOPIFY_API_KEY=...
+        SHOPIFY_API_SECRET=...
 
 ================================================================================
-PHASE D — CONNECT SHOPIFY STORE & VERIFY INTEGRATION
+PHASE D — CONNECT STORE & TEST (AFTER PHASE A)
 ================================================================================
 
-[ ] D1. Open frontend settings page:
-      https://skincare-frontend.onrender.com/dashboard/settings
-
-[ ] D2. Enter your ADMIN_API_KEY (from Phase C6) and click Save
-
-[ ] D3. Enter dev store domain (from A2.5):
-      glow-beauty-dev.myshopify.com
-
-[ ] D4. Click "Connect"
-      -> Browser goes to Shopify install/approve screen
-
-[ ] D5. Click "Install app" on Shopify
-
-[ ] D6. Expected redirect back to:
-      https://skincare-frontend.onrender.com/dashboard/settings?connected=1&store_id=1
-      Status message: "Shopify store connected successfully"
-
-[ ] D7. Click "Sync now"
-      Expected: products, orders, customers counts shown
-
-[ ] D8. Open Products page:
-      https://skincare-frontend.onrender.com/dashboard/products
-      Expected: synced products from dev store
-
-[ ] D9. Open Knowledge Base, upload a policy .txt or .pdf
-
-[ ] D10. Test chat:
-      https://skincare-frontend.onrender.com/chat
-      Ask: "What products do you recommend for oily skin?"
-
-[ ] D11. Mark complete:
-      SHOPIFY STORE CONNECT: [##########] 100%
+[ ] D1. https://skincare-frontend-z72h.onrender.com/dashboard/settings
+[ ] D2. Save ADMIN_API_KEY
+[ ] D3. Enter shop domain -> Connect -> Install app
+[ ] D4. Sync now -> verify product counts
+[ ] D5. Test chat at /chat
 
 ================================================================================
-PHASE B — PRODUCTION SECRETS REFERENCE
+FREE TIER REMINDERS
 ================================================================================
-
-[ ] B1.  OPENAI_API_KEY         = sk-...
-[ ] B2.  OPENAI_CHAT_MODEL      = gpt-4o
-[ ] B3.  ADMIN_API_KEY          = 32+ random chars
-[ ] B4.  JWT_SECRET             = 32+ random chars
-[ ] B5.  POSTGRES_PASSWORD      = (managed by Render DB)
-[ ] B6.  SHOPIFY_API_KEY        = from Partner Dashboard
-[ ] B7.  SHOPIFY_API_SECRET     = from Partner Dashboard
+- Web services sleep after 15 min inactivity (first request ~30-60s)
+- Free Postgres expires after ~30 days
+- No payment required on Render for current free plan
 
 ================================================================================
-PHASE E — ONGOING OPERATIONS
-================================================================================
-
-[ ] E1. Schedule sync every 6 hours:
-      scripts/production_sync.ps1
-      Set API_URL=https://skincare-api.onrender.com
-      Set ADMIN_API_KEY=your-key
-
-[ ] E2. Add custom domains in Render (optional)
-
-[ ] E3. Enable Render Postgres backups
-
-[ ] E4. Add Sentry or similar error monitoring
-
-[ ] E5. Review Shopify App Store requirements before public listing
-
-================================================================================
-OAUTH FLOW REFERENCE (how URLs connect)
-================================================================================
-
-  Merchant clicks Connect (Settings page)
-       |
-       v
-  GET {BACKEND_PUBLIC_URL}/api/auth/start?shop=store.myshopify.com
-       |
-       v
-  Shopify OAuth screen (merchant approves)
-       |
-       v
-  Shopify calls {BACKEND_PUBLIC_URL}/api/auth/callback?code=...&shop=...
-       |
-       v
-  Backend saves access token + syncs catalog
-       |
-       v
-  Redirect to {FRONTEND_PUBLIC_URL}/dashboard/settings?connected=1
-
-================================================================================
-POST-DEPLOY VERIFICATION COMMANDS
+POST-DEPLOY VERIFICATION (YOUR URLS)
 ================================================================================
 
 Health:
-  curl https://skincare-api.onrender.com/health
-
-Sync all stores:
-  curl -X POST https://skincare-api.onrender.com/api/shopify/sync-all \
-    -H "X-Admin-API-Key: YOUR_ADMIN_KEY"
-
-List products:
-  curl "https://skincare-api.onrender.com/api/shopify/products?store_id=1"
+  curl https://skincare-api-68pp.onrender.com/health
 
 Start chat:
-  curl -X POST https://skincare-api.onrender.com/api/chat/start \
+  curl -X POST https://skincare-api-68pp.onrender.com/api/chat/start \
     -H "Content-Type: application/json" \
-    -d '{"store_id":1,"customer_name":"Test"}'
-
-================================================================================
-TROUBLESHOOTING SHOPIFY OAUTH
-================================================================================
-
-Problem: "redirect_uri mismatch"
-Fix: Shopify redirect URL must exactly match BACKEND_PUBLIC_URL + /api/auth/callback
-
-Problem: OAuth works but redirects to wrong page
-Fix: Set FRONTEND_PUBLIC_URL on skincare-api service
-
-Problem: Connect button does nothing / CORS error
-Fix: CORS_ORIGINS must include your frontend URL exactly
-
-Problem: Frontend cannot reach API
-Fix: NEXT_PUBLIC_API_URL on frontend must match backend URL;
-     redeploy frontend after changing (build-time variable)
-
-Problem: Invalid HMAC on callback
-Fix: SHOPIFY_API_SECRET must match Client secret in Partner Dashboard
+    -d "{\"store_id\":1,\"customer_name\":\"Test\"}"
 
 ================================================================================
 CURRENT STATUS
 ================================================================================
-CODE:           COMPLETE
-GIT PUSH:       COMPLETE (github.com/NabilaShova/SkinCare-AI-Agent @ 4599b27)
-RENDER DEPLOY:  IN PROGRESS — YOU ARE HERE: complete Phase C2-C7 in Render Dashboard
-SHOPIFY APP:    PENDING — start at Phase A1 after Render URLs are known
-STORE CONNECT:  PENDING — start at Phase D1 after Shopify app is configured
-
-NEXT ACTION FOR YOU:
-1. Open https://dashboard.render.com
-2. New -> Blueprint -> connect NabilaShova/SkinCare-AI-Agent (main)
-3. Enter OPENAI_API_KEY, ADMIN_API_KEY, JWT_SECRET when prompted
-4. Click Apply and wait for deploy
-5. Copy skincare-frontend + skincare-api URLs
-6. Update env vars (C11) and redeploy frontend
+RENDER DEPLOY:     LIVE (free tier)
+NEXT ACTION:       Complete Step C11 (env vars + frontend redeploy)
+THEN:              Phase A Shopify app with URLs above
 ================================================================================

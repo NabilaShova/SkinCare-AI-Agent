@@ -1,0 +1,23 @@
+# Copy these into Render Dashboard -> Environment (after first deploy)
+# Your live URLs (2026-06-06):
+#   API:      https://skincare-api-68pp.onrender.com
+#   Frontend: https://skincare-frontend-z72h.onrender.com
+
+# --- skincare-api service -> Environment ---
+BACKEND_PUBLIC_URL=https://skincare-api-68pp.onrender.com
+FRONTEND_PUBLIC_URL=https://skincare-frontend-z72h.onrender.com
+CORS_ORIGINS=https://skincare-frontend-z72h.onrender.com
+SHOPIFY_APP_URL=https://skincare-frontend-z72h.onrender.com
+
+# --- skincare-frontend service -> Environment ---
+NEXT_PUBLIC_API_URL=https://skincare-api-68pp.onrender.com
+NEXT_PUBLIC_SHOPIFY_APP_URL=https://skincare-frontend-z72h.onrender.com
+
+# --- Shopify Partner Dashboard (Phase A) ---
+# App URL:
+#   https://skincare-frontend-z72h.onrender.com
+# Allowed redirection URL:
+#   https://skincare-api-68pp.onrender.com/api/auth/callback
+
+# IMPORTANT: After updating skincare-frontend env vars, click
+# Manual Deploy -> Deploy latest commit (rebuild required).
