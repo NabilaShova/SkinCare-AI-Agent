@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChatBubble } from '@/components/chat-bubble';
-import { fetcher } from '@/lib/api';
+import { apiUrl, fetcher } from '@/lib/api';
 
 interface MessageItem {
   role: 'user' | 'assistant';
@@ -24,27 +24,36 @@ export default function ChatPage() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    async function startConversation() {
-      try {
-        const data = await fetcher('/chat/start', {
-          method: 'POST',
-          body: JSON.stringify({ customer_name: 'Guest' })
-        });
-        setConversationId(data.conversation_id);
-        setStoreName(data.store_name);
-        setMessages([{ role: 'assistant', content: data.greeting }]);
-      } catch (error) {
-        console.error('Failed to start chat', error);
-      } finally {
-        setLoading(false);
-      }
+  const startConversation = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await fetcher('/chat/start', {
+        method: 'POST',
+        body: JSON.stringify({ customer_name: 'Guest' })
+      });
+      setConversationId(data.conversation_id);
+      setStoreName(data.store_name);
+      setMessages([{ role: 'assistant', content: data.greeting }]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start chat';
+      setError(
+        `Could not connect to the AI service. ${message} ` +
+          `If this persists, confirm NEXT_PUBLIC_API_URL is set to ${apiUrl} on Render and redeploy the frontend.`
+      );
+      setMessages([]);
+      setConversationId(null);
+    } finally {
+      setLoading(false);
     }
-
-    startConversation();
   }, []);
+
+  useEffect(() => {
+    startConversation();
+  }, [startConversation]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -52,9 +61,18 @@ export default function ChatPage() {
 
   const handleSend = async (text?: string) => {
     const content = (text ?? prompt).trim();
-    if (!content || !conversationId || sending) return;
+    if (!content) return;
+
+    if (!conversationId) {
+      setError('Chat is not ready yet. Wait for connection or click Retry below.');
+      setPrompt(content);
+      return;
+    }
+
+    if (sending) return;
 
     setSending(true);
+    setError('');
     setPrompt('');
     setMessages((current) => [...current, { role: 'user', content }]);
 
@@ -66,8 +84,9 @@ export default function ChatPage() {
       if (response?.messages) {
         setMessages(response.messages);
       }
-    } catch (error) {
-      console.error('Failed to send message', error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Request failed';
+      setError(`Failed to send message: ${message}`);
       setMessages((current) => [
         ...current,
         {
@@ -79,6 +98,13 @@ export default function ChatPage() {
       setSending(false);
     }
   };
+
+  const handleStarterClick = (item: string) => {
+    setPrompt(item);
+    setError('');
+  };
+
+  const ready = !loading && conversationId !== null;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -99,10 +125,27 @@ export default function ChatPage() {
           </Link>
         </header>
 
+        {error ? (
+          <div className="mb-4 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            {error}
+            {!ready ? (
+              <button
+                type="button"
+                onClick={startConversation}
+                className="ml-3 rounded-full border border-red-400/50 px-3 py-1 text-xs font-semibold"
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
         <section className="flex min-h-0 flex-1 flex-col rounded-3xl border border-slate-800 bg-slate-900/90 shadow-xl shadow-slate-950/40">
           <div className="flex-1 space-y-2 overflow-y-auto p-6">
             {loading ? (
-              <div className="rounded-3xl bg-slate-950/80 p-6 text-slate-400">Starting your skincare consultation…</div>
+              <div className="rounded-3xl bg-slate-950/80 p-6 text-slate-400">
+                Starting your skincare consultation… (first load on free tier may take up to 60 seconds)
+              </div>
             ) : (
               messages.map((message, index) => (
                 <ChatBubble key={`${message.role}-${index}`} role={message.role} message={message.content} />
@@ -114,15 +157,15 @@ export default function ChatPage() {
             <div ref={bottomRef} />
           </div>
 
-          {!loading && messages.length <= 1 ? (
+          {ready && messages.length <= 1 ? (
             <div className="border-t border-slate-800 px-6 py-4">
-              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Try asking</p>
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Try asking (fills the box below)</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {starterPrompts.map((item) => (
                   <button
                     key={item}
                     type="button"
-                    onClick={() => handleSend(item)}
+                    onClick={() => handleStarterClick(item)}
                     className="rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-left text-sm text-slate-300 transition hover:border-pink-500/40 hover:text-white"
                   >
                     {item}
@@ -144,12 +187,13 @@ export default function ChatPage() {
                   }
                 }}
                 placeholder="Ask about products, ingredients, shipping, or your order..."
-                className="min-w-0 flex-1 rounded-2xl border border-slate-800 bg-slate-950/90 px-4 py-3 text-slate-100 outline-none transition focus:border-pink-500"
+                disabled={loading}
+                className="min-w-0 flex-1 rounded-2xl border border-slate-800 bg-slate-950/90 px-4 py-3 text-slate-100 outline-none transition focus:border-pink-500 disabled:opacity-60"
               />
               <button
                 type="button"
                 onClick={() => handleSend()}
-                disabled={sending || loading}
+                disabled={sending || loading || !prompt.trim()}
                 className="rounded-2xl bg-pink-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-pink-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Send

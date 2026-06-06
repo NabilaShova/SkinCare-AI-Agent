@@ -242,3 +242,9 @@ def ensure_product_indexes(db: Session) -> None:
     for store in stores:
         index_product_embeddings(db, store.id)
     db.commit()
+
+
+def ensure_minimum_store(db: Session) -> None:
+    """Seed demo catalog when database is empty (e.g. fresh Render deploy)."""
+    if db.query(Store).first() is None:
+        seed_demo_data(db)

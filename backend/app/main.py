@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.core.config import settings
-from app.db.init_db import ensure_product_indexes, init_database, seed_demo_data
+from app.db.init_db import ensure_minimum_store, ensure_product_indexes, init_database, seed_demo_data
 from app.db.session import SessionLocal
 
 
@@ -16,6 +16,8 @@ async def lifespan(_: FastAPI):
     try:
         if settings.SEED_DEMO_DATA:
             seed_demo_data(db)
+        else:
+            ensure_minimum_store(db)
         ensure_product_indexes(db)
     finally:
         db.close()
