@@ -90,11 +90,67 @@ def build_retrieval_query(
     if profile.get("budget"):
         parts.append(f"budget: {profile['budget']}")
 
-    recent_user_messages = [item["content"] for item in history[-4:] if item["role"] == "user"]
-    if len(recent_user_messages) > 1:
+    recent_user_messages = [item["content"] for item in history[-6:] if item["role"] == "user"]
+    short_reply = len(message.strip().split()) <= 3
+    if short_reply and recent_user_messages:
+        parts.append("recent context: " + " | ".join(recent_user_messages[-3:]))
+    elif len(recent_user_messages) > 1:
         parts.append("recent context: " + " | ".join(recent_user_messages[:-1]))
 
     return ". ".join(part for part in parts if part)
+
+
+REQUESTED_PRODUCT_TYPES: dict[str, list[str]] = {
+    "sunscreen": ["sunscreen", "spf", "sunblock", "sun protection"],
+    "cleanser": ["cleanser", "cleansing", "face wash", "wash", "foam"],
+    "serum": ["serum", "essence", "ampoule"],
+    "moisturizer": ["moisturizer", "moistur", "cream", "lotion", "gel"],
+    "toner": ["toner", "toning"],
+    "mask": ["mask", "sheet mask"],
+    "exfoliant": ["exfoliant", "peel", "bha", "aha"],
+    "eye care": ["eye cream", "eye serum", "eye gel"],
+    "lip care": ["lip balm", "lip mask", "lip treatment"],
+}
+
+
+def detect_requested_product_types(query: str) -> set[str]:
+    lowered = query.lower()
+    found: set[str] = set()
+    for product_type, terms in REQUESTED_PRODUCT_TYPES.items():
+        if any(term in lowered for term in terms):
+            found.add(product_type)
+    return found
+
+
+def _product_matches_type(product: Product, product_type: str) -> bool:
+    haystack = _product_haystack(product)
+    terms = REQUESTED_PRODUCT_TYPES.get(product_type, [product_type])
+    if any(term in haystack for term in terms):
+        return True
+    for collection in product.collections or []:
+        if any(term in str(collection).lower() for term in terms):
+            return True
+    return False
+
+
+def filter_products_for_query(products: list[Product], query: str) -> list[Product]:
+    requested_types = detect_requested_product_types(query)
+    if not requested_types:
+        return products
+    filtered = [product for product in products if any(_product_matches_type(product, product_type) for product_type in requested_types)]
+    return filtered or products
+
+
+def _parse_price_amount(price: str | None) -> float | None:
+    if not price:
+        return None
+    digits = re.sub(r"[^\d.]", "", str(price))
+    if not digits:
+        return None
+    try:
+        return float(digits)
+    except ValueError:
+        return None
 
 
 def _hash_embedding(text: str, dimension: int) -> list[float]:
@@ -426,6 +482,7 @@ def search_products(
     store_id: int,
     limit: int | None = None,
     profile: dict[str, Any] | None = None,
+    enforce_product_type: bool = True,
 ) -> list[Product]:
     limit = limit or settings.PRODUCT_TOP_K
     products = (
@@ -450,19 +507,43 @@ def search_products(
         for record in product_embeddings
     }
 
+    requested_types = detect_requested_product_types(retrieval_query)
+
     def score_product(product: Product) -> float:
-        keyword_score = sum(1 for term in query_terms if term in _product_haystack(product))
+        haystack = _product_haystack(product)
+        keyword_score = sum(1 for term in query_terms if term in haystack)
         semantic_score = semantic_by_product_id.get(product.id, 0.0) * 10
         profile_bonus = 0.0
         if profile and profile.get("skin_type"):
             skin_type = str(profile["skin_type"]).lower()
-            if skin_type in _product_haystack(product):
+            if skin_type in haystack:
                 profile_bonus += 2.0
         for concern in (profile or {}).get("concerns", []):
-            if str(concern).lower() in _product_haystack(product):
+            if str(concern).lower() in haystack:
                 profile_bonus += 1.5
-        return keyword_score + semantic_score + profile_bonus
+
+        type_bonus = 0.0
+        if requested_types:
+            if any(_product_matches_type(product, product_type) for product_type in requested_types):
+                type_bonus += 10.0
+            else:
+                type_bonus -= 8.0
+
+        budget_bonus = 0.0
+        if profile and profile.get("budget") == "budget-friendly":
+            amount = _parse_price_amount(product.price)
+            if amount is not None:
+                if amount <= 2000:
+                    budget_bonus += 3.0
+                elif amount >= 3500:
+                    budget_bonus -= 2.0
+
+        return keyword_score + semantic_score + profile_bonus + type_bonus + budget_bonus
 
     ranked = sorted(products, key=score_product, reverse=True)
+    if requested_types and enforce_product_type:
+        typed = [product for product in ranked if any(_product_matches_type(product, t) for t in requested_types)]
+        if typed:
+            return typed[:limit]
     top = [product for product in ranked if score_product(product) > 0]
     return (top or ranked)[:limit]

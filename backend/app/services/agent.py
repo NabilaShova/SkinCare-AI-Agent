@@ -12,7 +12,9 @@ from app.db.models import Conversation, Message, Order, Product
 from app.services.rag import (
     build_retrieval_query,
     detect_policy_topic,
+    detect_requested_product_types,
     filter_policy_hits,
+    filter_products_for_query,
     format_knowledge_context,
     search_knowledge,
     search_products,
@@ -90,6 +92,55 @@ PROFILE_CONCERNS = [
 
 SKIN_TYPES = ["oily", "dry", "combination", "sensitive", "normal"]
 
+AFFIRMATIVE_REPLIES = {
+    "yes",
+    "yeah",
+    "yep",
+    "sure",
+    "ok",
+    "okay",
+    "please",
+    "yes please",
+    "sounds good",
+    "do it",
+    "go ahead",
+    "that works",
+}
+
+PRODUCT_BROWSE_TERMS = [
+    "show me",
+    "options",
+    "sunscreen",
+    "spf",
+    "moisturizer",
+    "serum",
+    "cleanser",
+    "toner",
+    "mask",
+    "affordable",
+    "reasonable",
+    "budget",
+    "under",
+    "recommend",
+    "suggest",
+    "help me find",
+    "looking for",
+    "hydrating",
+]
+
+
+def _is_affirmative(message: str) -> bool:
+    lowered = message.lower().strip("!.? ")
+    return lowered in AFFIRMATIVE_REPLIES or lowered.startswith("yes ")
+
+
+def _last_assistant_offered_routine(history: list[dict[str, str]]) -> bool:
+    for item in reversed(history):
+        if item["role"] == "assistant":
+            lowered = item["content"].lower()
+            return "routine" in lowered or "morning" in lowered or "night" in lowered
+    return False
+
 
 def _classify_intent_rules(message: str) -> Intent:
     lowered = message.lower()
@@ -119,6 +170,8 @@ def _classify_intent_rules(message: str) -> Intent:
             "night routine",
         ]
     ) or any(term in lowered for term in SKIN_TYPES + PROFILE_CONCERNS):
+        return "product_recommendation"
+    if any(term in lowered for term in PRODUCT_BROWSE_TERMS):
         return "product_recommendation"
     return "general"
 
@@ -164,7 +217,17 @@ def _classify_intent_llm(message: str, history: list[dict[str, str]], profile: d
     return None
 
 
-def _classify_intent(message: str, history: list[dict[str, str]], profile: dict[str, Any]) -> Intent:
+def _classify_intent(
+    message: str,
+    history: list[dict[str, str]],
+    profile: dict[str, Any],
+    last_intent: str | None = None,
+) -> Intent:
+    if _is_affirmative(message) and (
+        last_intent == "product_recommendation" or _last_assistant_offered_routine(history)
+    ):
+        return "product_recommendation"
+
     llm_intent = _classify_intent_llm(message, history, profile)
     if llm_intent:
         return llm_intent
@@ -189,9 +252,11 @@ def _format_products(products: list[Product]) -> str:
 def _intent_instructions(intent: str) -> str:
     instructions = {
         "product_recommendation": (
-            "Act as a beauty advisor. Ask one focused follow-up question only if key profile details are missing. "
-            "Recommend 1-3 products from the catalog, explain why each fits, and mention how/when to use them. "
-            "If enough context exists, offer a concise morning and/or night routine using only catalog products."
+            "Act as a beauty advisor. Stay on the customer's current request from recent messages. "
+            "If they asked for a product type (e.g. sunscreen), recommend only that type unless they broaden the ask. "
+            "Ask one focused follow-up only if skin type or concern is still missing. "
+            "Recommend 1-3 matching products with short reasons. Do not repeat full product descriptions verbatim. "
+            "If the customer agreed to a routine, build a concise morning and/or night routine using only catalog products."
         ),
         "ingredient_question": (
             "Answer ingredient compatibility and usage questions using the knowledge context first. "
@@ -232,6 +297,8 @@ def _build_system_prompt(intent: str, context: dict[str, Any]) -> str:
         "- Keep responses conversational, clear, and under 180 words unless building a routine.\n"
         "- Never show raw document filenames, chunk markers, or unedited policy excerpts to the customer.\n"
         "- Summarize policies in plain language with short bullet points when helpful.\n"
+        "- Use conversation history for short replies like 'yes' or skin-type-only answers.\n"
+        "- Never recommend cleansers or hand creams when the customer asked for sunscreen.\n"
         f"Active intent: {intent}\n"
         f"Intent instructions: {_intent_instructions(intent)}\n"
         f"Customer profile: {json.dumps(context.get('profile', {}))}\n"
@@ -353,7 +420,112 @@ def _ingredient_fallback_answer(message: str, knowledge_hits: list[dict[str, Any
     return f"Here is guidance based on our ingredient knowledge:\n{body}\n\nI can also suggest suitable products if you'd like."
 
 
-def _fallback_response(state: AgentState) -> str:
+def _sanitize_product_summary(product: Product) -> str:
+    description = re.sub(r"\s+", " ", product.description or "").strip()
+    if "Key ingredients:" in description:
+        description = description.split("Key ingredients:")[0].strip()
+    if len(description) > 140:
+        description = description[:140].rsplit(" ", 1)[0] + "..."
+    ingredients = (product.ingredients or "").strip()
+    if ingredients and ingredients not in description:
+        return f"{description} Ingredients: {ingredients}."
+    return description or "A matching option from your catalog."
+
+
+def _wants_routine_build(message: str, history: list[dict[str, str]], last_intent: str | None) -> bool:
+    if _is_affirmative(message):
+        return last_intent == "product_recommendation" or _last_assistant_offered_routine(history)
+    return any(term in message.lower() for term in ["routine", "morning routine", "night routine", "build a"])
+
+
+def _pick_routine_products(products: list[Product], profile: dict[str, Any]) -> dict[str, Product | None]:
+    slots = {"cleanser": None, "serum": None, "moisturizer": None, "sunscreen": None}
+    for product in products:
+        haystack = f"{product.title} {product.description or ''} {' '.join(product.collections or [])}".lower()
+        if slots["sunscreen"] is None and ("sunscreen" in haystack or "spf" in haystack):
+            slots["sunscreen"] = product
+        elif slots["cleanser"] is None and ("cleanser" in haystack or "cleansing" in haystack or "wash" in haystack):
+            slots["cleanser"] = product
+        elif slots["serum"] is None and ("serum" in haystack or "essence" in haystack):
+            slots["serum"] = product
+        elif slots["moisturizer"] is None and any(term in haystack for term in ["moistur", "cream", "lotion", "gel"]):
+            slots["moisturizer"] = product
+    return slots
+
+
+def _routine_fallback_answer(products: list[Product], profile: dict[str, Any]) -> str:
+    slots = _pick_routine_products(products, profile)
+    skin = profile.get("skin_type", "your skin type")
+    lines = [f"Here is a simple routine for {skin} skin using products from your store:"]
+    morning = []
+    if slots["cleanser"]:
+        morning.append(f"1. Cleanser — {slots['cleanser'].title}")
+    if slots["serum"]:
+        morning.append(f"2. Serum — {slots['serum'].title}")
+    if slots["moisturizer"]:
+        morning.append(f"3. Moisturizer — {slots['moisturizer'].title}")
+    if slots["sunscreen"]:
+        morning.append(f"4. Sunscreen — {slots['sunscreen'].title}")
+    if morning:
+        lines.append("Morning:")
+        lines.extend(morning)
+    night = []
+    if slots["cleanser"]:
+        night.append(f"1. Cleanser — {slots['cleanser'].title}")
+    if slots["serum"]:
+        night.append(f"2. Treatment serum — {slots['serum'].title}")
+    if slots["moisturizer"]:
+        night.append(f"3. Moisturizer — {slots['moisturizer'].title}")
+    if night:
+        lines.append("Night:")
+        lines.extend(night)
+    if len(lines) == 1:
+        return "I can build a routine once I have a cleanser, serum, moisturizer, and sunscreen in your synced catalog."
+    return "\n".join(lines)
+
+
+def _product_fallback_answer(
+    state: AgentState,
+    products: list[Product],
+    profile: dict[str, Any],
+    history: list[dict[str, str]],
+    last_intent: str | None,
+) -> str:
+    if _wants_routine_build(state["user_message"], history, last_intent) and products:
+        return _routine_fallback_answer(products, profile)
+
+    retrieval_query = build_retrieval_query(state["user_message"], profile=profile, history=history)
+    requested_types = detect_requested_product_types(retrieval_query)
+    scoped = filter_products_for_query(products, retrieval_query)
+
+    if not scoped:
+        return (
+            "I'd love to help. Tell me your skin type, main concerns, and whether you want a single product or a full routine."
+        )
+
+    if not profile.get("skin_type") and state["user_message"].lower().strip() in {s.lower() for s in SKIN_TYPES}:
+        pass
+    elif not profile.get("skin_type") and len(state["user_message"].split()) <= 4:
+        names = ", ".join(item.title for item in scoped[:3])
+        return f"I can help with that. Relevant options in your store include: {names}. What is your skin type and main concern?"
+
+    lead = scoped[0]
+    extras = [item for item in scoped[1:3] if item.id != lead.id]
+    response = (
+        f"Based on what you shared, I'd start with {lead.title} ({lead.price}). "
+        f"{_sanitize_product_summary(lead)}"
+    )
+    if extras:
+        names = ", ".join(item.title for item in extras)
+        response += f" Other strong options: {names}."
+    if requested_types == {"sunscreen"} or "sunscreen" in retrieval_query.lower():
+        response += " Apply sunscreen as the last step every morning."
+    else:
+        response += " Would you like me to build a morning and night routine from these?"
+    return response
+
+
+def _fallback_response(state: AgentState, history: list[dict[str, str]], last_intent: str | None = None) -> str:
     intent = state["intent"]
     context = state["context"]
     products = context.get("product_objects", [])
@@ -391,30 +563,23 @@ def _fallback_response(state: AgentState) -> str:
         return _ingredient_fallback_answer(state["user_message"], knowledge_hits)
 
     if intent == "product_recommendation" and products:
-        lead = products[0]
-        extras = products[1:3]
-        response = (
-            f"Based on what you shared, I'd start with {lead.title} ({lead.price}). "
-            f"{lead.description} Key ingredients: {lead.ingredients}."
-        )
-        if extras:
-            names = ", ".join(item.title for item in extras)
-            response += f" Strong alternatives from your store: {names}."
-        response += " Would you like me to build a morning and night routine from these?"
-        return response
+        return _product_fallback_answer(state, products, context.get("profile", {}), history, last_intent)
 
     if products:
-        names = ", ".join(item.title for item in products[:3])
-        return f"I can help with that. Relevant options in your store include: {names}. What is your skin type and main concern?"
+        return _product_fallback_answer(state, products, context.get("profile", {}), history, last_intent)
 
     return (
         "I'd love to help. Tell me your skin type, main concerns, and whether you want a single product or a full routine."
     )
 
 
-def _llm_response(state: AgentState, history: list[dict[str, str]]) -> str:
+def _llm_response(
+    state: AgentState,
+    history: list[dict[str, str]],
+    last_intent: str | None = None,
+) -> str:
     if not settings.OPENAI_API_KEY:
-        return _fallback_response(state)
+        return _fallback_response(state, history, last_intent)
 
     try:
         from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -444,18 +609,26 @@ def _llm_response(state: AgentState, history: list[dict[str, str]]) -> str:
     except Exception:
         pass
 
-    return _fallback_response(state)
+    return _fallback_response(state, history, last_intent)
 
 
 def _extract_profile(message: str, existing: dict[str, Any]) -> dict[str, Any]:
     profile = dict(existing)
     lowered = message.lower()
 
-    for skin_type in SKIN_TYPES:
-        if skin_type in lowered:
-            profile["skin_type"] = skin_type
+    if "combination" in lowered and "dry" in lowered:
+        profile["skin_type"] = "combination"
+    elif "combination" in lowered and "oily" in lowered:
+        profile["skin_type"] = "combination"
+    else:
+        for skin_type in SKIN_TYPES:
+            if skin_type in lowered:
+                profile["skin_type"] = skin_type
 
     concerns = list(profile.get("concerns", []))
+    if "hydrating" in lowered or "hydration" in lowered or "dehydrated" in lowered:
+        if "dehydration" not in concerns:
+            concerns.append("dehydration")
     for concern in PROFILE_CONCERNS:
         if concern in lowered and concern not in concerns:
             concerns.append(concern)
@@ -464,7 +637,7 @@ def _extract_profile(message: str, existing: dict[str, Any]) -> dict[str, Any]:
 
     if any(term in lowered for term in ["fragrance-free", "fragrance free", "no fragrance"]):
         profile["preferences"] = "fragrance-free"
-    if any(term in lowered for term in ["budget", "affordable", "cheaper", "low cost"]):
+    if any(term in lowered for term in ["budget", "affordable", "cheaper", "low cost", "reasonable price", "reasonable"]):
         profile["budget"] = "budget-friendly"
     if any(term in lowered for term in ["premium", "luxury", "high-end"]):
         profile["budget"] = "premium"
@@ -472,8 +645,13 @@ def _extract_profile(message: str, existing: dict[str, Any]) -> dict[str, Any]:
     return profile
 
 
-def _node_classify(state: AgentState, history: list[dict[str, str]], profile: dict[str, Any]) -> AgentState:
-    state["intent"] = _classify_intent(state["user_message"], history, profile)
+def _node_classify(
+    state: AgentState,
+    history: list[dict[str, str]],
+    profile: dict[str, Any],
+    last_intent: str | None = None,
+) -> AgentState:
+    state["intent"] = _classify_intent(state["user_message"], history, profile, last_intent=last_intent)
     state["should_escalate"] = state["intent"] == "escalation"
     return state
 
@@ -483,9 +661,25 @@ def _node_gather_context(
     db: Session,
     history: list[dict[str, str]],
     profile: dict[str, Any],
+    last_intent: str | None = None,
 ) -> AgentState:
     retrieval_query = build_retrieval_query(state["user_message"], profile=profile, history=history)
-    products = search_products(db, retrieval_query, state["store_id"], profile=profile)
+    product_limit = settings.PRODUCT_TOP_K
+    if _wants_routine_build(state["user_message"], history, last_intent):
+        retrieval_query = f"{retrieval_query}. morning night routine cleanser serum moisturizer sunscreen"
+        product_limit = max(settings.PRODUCT_TOP_K, 15)
+    elif state["intent"] == "product_recommendation":
+        product_limit = max(settings.PRODUCT_TOP_K, 8)
+
+    building_routine = _wants_routine_build(state["user_message"], history, last_intent)
+    products = search_products(
+        db,
+        retrieval_query,
+        state["store_id"],
+        profile=profile,
+        limit=product_limit,
+        enforce_product_type=not building_routine,
+    )
     policy_topic = detect_policy_topic(state["user_message"]) if state["intent"] == "policy_faq" else None
     knowledge_hits = search_knowledge(
         db,
@@ -531,8 +725,13 @@ def _node_gather_context(
     return state
 
 
-def _node_respond(state: AgentState, db: Session, history: list[dict[str, str]]) -> AgentState:
-    state["response"] = _llm_response(state, history)
+def _node_respond(
+    state: AgentState,
+    db: Session,
+    history: list[dict[str, str]],
+    last_intent: str | None = None,
+) -> AgentState:
+    state["response"] = _llm_response(state, history, last_intent=last_intent)
 
     conversation = db.query(Conversation).filter(Conversation.id == state["conversation_id"]).first()
     if conversation:
@@ -546,11 +745,16 @@ def _node_respond(state: AgentState, db: Session, history: list[dict[str, str]])
     return state
 
 
-def build_agent_graph(db: Session, history: list[dict[str, str]], profile: dict[str, Any]):
+def build_agent_graph(
+    db: Session,
+    history: list[dict[str, str]],
+    profile: dict[str, Any],
+    last_intent: str | None = None,
+):
     graph = StateGraph(AgentState)
-    graph.add_node("classify", lambda state: _node_classify(state, history, profile))
-    graph.add_node("gather_context", lambda state: _node_gather_context(state, db, history, profile))
-    graph.add_node("respond", lambda state: _node_respond(state, db, history))
+    graph.add_node("classify", lambda state: _node_classify(state, history, profile, last_intent))
+    graph.add_node("gather_context", lambda state: _node_gather_context(state, db, history, profile, last_intent))
+    graph.add_node("respond", lambda state: _node_respond(state, db, history, last_intent))
     graph.set_entry_point("classify")
     graph.add_edge("classify", "gather_context")
     graph.add_edge("gather_context", "respond")
@@ -577,6 +781,7 @@ def generate_agent_reply(
 
     conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     profile = (conversation.meta or {}).get("profile", {}) if conversation else {}
+    last_intent = (conversation.meta or {}).get("last_intent") if conversation else None
 
     initial_state: AgentState = {
         "store_id": store_id,
@@ -589,7 +794,7 @@ def generate_agent_reply(
         "sources": [],
     }
 
-    graph = build_agent_graph(db, history, profile)
+    graph = build_agent_graph(db, history, profile, last_intent=last_intent)
     result = graph.invoke(initial_state)
     return {
         "content": result["response"],

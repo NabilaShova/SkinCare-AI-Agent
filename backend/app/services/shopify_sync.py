@@ -27,7 +27,7 @@ def _format_price(variants: list[dict[str, Any]]) -> str | None:
     if not variants:
         return None
     price = variants[0].get("price")
-    return f"${price}" if price else None
+    return f"BDT {price}" if price else None
 
 
 def _upsert_product(db: Session, store_id: int, item: dict[str, Any]) -> None:
