@@ -4,206 +4,338 @@ SKINCARE AI AGENT - PRODUCTION DEPLOYMENT LOG
 Project: AI Customer Support Agent for Shopify Beauty & Skincare Stores
 Started: 2026-06-06
 Last Updated: 2026-06-06
-Goal: Complete production readiness with Shopify OAuth, live sync, security,
-      knowledge upload, and deployment artifacts.
+Repository: https://github.com/NabilaShova/SkinCare-AI-Agent
 ================================================================================
 
 --------------------------------------------------------------------------------
 PROGRESS SUMMARY
 --------------------------------------------------------------------------------
-CODE IMPLEMENTATION:     [##########] 100% COMPLETE
-GIT PUSH TO GITHUB:      [##########] 100% COMPLETE
-RENDER BLUEPRINT:        [##########] 100% DEPLOYED (free tier)
-RENDER ENV + REDEPLOY:   [######----]  60% YOU ARE HERE (Step C11)
-SHOPIFY APP SETUP:       [          ]   0% NOT STARTED
-SHOPIFY STORE CONNECT:   [          ]   0% NOT STARTED
+CODE IMPLEMENTATION:        [##########] 100% COMPLETE
+GIT PUSH TO GITHUB:         [##########] 100% COMPLETE
+RENDER BLUEPRINT (FREE):    [##########] 100% DEPLOYED
+RENDER ENV + REDEPLOY:      [##########] 100% COMPLETE
+CHAT ON PRODUCTION:         [##########] 100% WORKING
+SHOPIFY APP + STORE CONNECT:[##########] 100% WORKING
+PRODUCT SYNC:               [##########] 100% WORKING
+KNOWLEDGE BASE UPLOAD:      [####------]  40% OPTIONAL NEXT
+ORDER/CUSTOMER SYNC (PCD):  [##--------]  20% OPTIONAL (needs Shopify approval)
+CUSTOM DOMAIN / PAID TIER:  [          ]   0% OPTIONAL LATER
 
-YOUR LIVE URLS (confirmed working 2026-06-06):
-  API:      https://skincare-api-68pp.onrender.com
-  Frontend: https://skincare-frontend-z72h.onrender.com
-  Health:   https://skincare-api-68pp.onrender.com/health  -> {"status":"ok"}
-  Chat:     https://skincare-frontend-z72h.onrender.com/chat
-  Settings: https://skincare-frontend-z72h.onrender.com/dashboard/settings
+YOUR LIVE PRODUCTION URLS:
+  API:       https://skincare-api-68pp.onrender.com
+  Frontend:  https://skincare-frontend-z72h.onrender.com
+  Health:    https://skincare-api-68pp.onrender.com/health
+  Chat:      https://skincare-frontend-z72h.onrender.com/chat
+  Settings:  https://skincare-frontend-z72h.onrender.com/dashboard/settings
+  Products:  https://skincare-frontend-z72h.onrender.com/dashboard/products
+  Knowledge: https://skincare-frontend-z72h.onrender.com/dashboard/knowledge
 
-SHOPIFY REDIRECT URL (use in Partner Dashboard):
-  https://skincare-api-68pp.onrender.com/api/auth/callback
+SHOPIFY OAUTH:
+  App URL:      https://skincare-frontend-z72h.onrender.com
+  Redirect URL: https://skincare-api-68pp.onrender.com/api/auth/callback
+  Dev store:    glow-beauty-dev-dmf5uuka.myshopify.com (connected)
 
-Quick copy file for env vars: render-env-values.txt
-
-================================================================================
-OPENAI API KEY — DETAILED GENERATION STEPS
-================================================================================
-
-WHAT IT IS:
-  Secret key from OpenAI that powers AI chat responses and embeddings.
-  Format: sk-proj-... or sk-...
-
-STEP-BY-STEP:
-[ ] 1. Open https://platform.openai.com
-[ ] 2. Sign up or log in
-[ ] 3. Add billing (required for API usage):
-        Profile -> Billing -> Add payment method
-        OpenAI is pay-as-you-go (a few dollars covers testing)
-[ ] 4. Open https://platform.openai.com/api-keys
-[ ] 5. Click "Create new secret key"
-[ ] 6. Name: Skincare-AI-Render
-[ ] 7. Permissions: All (or Restricted with model access)
-[ ] 8. Click Create -> COPY THE KEY IMMEDIATELY
-        (You cannot view it again after closing the dialog)
-[ ] 9. Paste into Render -> skincare-api -> Environment:
-        OPENAI_API_KEY = sk-proj-xxxxxxxx...
-[ ] 10. Never commit this key to GitHub
-
-COST NOTE:
-  - gpt-4o (set in render.yaml) costs more than gpt-4o-mini
-  - Testing chat: typically pennies to a few dollars
-  - Set usage limits at: platform.openai.com -> Settings -> Limits
-
-IF YOU SKIP OPENAI_API_KEY:
-  App still runs but chat uses basic fallback (less accurate).
+KEY GIT COMMITS:
+  4599b27  Production deployment + Shopify OAuth
+  234cd8f  Switch Render Blueprint to free tier
+  21efd5a  Document live Render URLs
+  a662e3d  Fix production chat (empty DB seed + chat UX)
+  12d2422  Partial Shopify sync (403 customer API fix)
 
 ================================================================================
-ADMIN_API_KEY & JWT_SECRET — DETAILED GENERATION STEPS
+PHASE 0 — LOCAL DEVELOPMENT (COMPLETED EARLIER)
 ================================================================================
+[x] Built Next.js frontend + FastAPI backend
+[x] Docker Compose local stack (postgres + pgvector + api + frontend)
+[x] LangGraph agent routing + RAG pipeline
+[x] Demo store seed data for local testing
+[x] Customer chat UI at /chat
+[x] Admin dashboard (settings, products, knowledge, conversations)
 
-ADMIN_API_KEY — your dashboard password
-  Used when saving key in /dashboard/settings and for sync/upload APIs.
+================================================================================
+PHASE 1 — OPENAI API KEY (DETAILED STEPS)
+================================================================================
+WHAT: Secret key from OpenAI for chat responses and embeddings.
 
-JWT_SECRET — backend signing key (different from ADMIN_API_KEY)
-  Used internally to sign admin tokens. Never shown in the UI.
+[x] 1. Open https://platform.openai.com and sign in
+[x] 2. Add billing: Profile -> Billing -> Add payment method
+[x] 3. Open https://platform.openai.com/api-keys
+[x] 4. Create new secret key named "Skincare-AI-Render"
+[x] 5. Copy key immediately (sk-proj-... or sk-...)
+[x] 6. Paste into Render -> skincare-api -> Environment -> OPENAI_API_KEY
+[x] 7. Never commit key to GitHub
 
-GENERATE ON WINDOWS (PowerShell) — run TWICE, use each output separately:
+COST: Pay-as-you-go. Testing = pennies to a few dollars.
+LIMITS: platform.openai.com -> Settings -> Limits (set monthly cap)
+
+WITHOUT KEY: App runs but uses basic fallback (less accurate chat).
+
+================================================================================
+PHASE 2 — ADMIN_API_KEY & JWT_SECRET (DETAILED STEPS)
+================================================================================
+ADMIN_API_KEY = dashboard password (save in Settings page)
+JWT_SECRET    = backend token signing (never shown in UI)
+
+GENERATE (PowerShell, run twice):
   -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 40 | ForEach-Object {[char]$_})
 
-OR use a password manager -> Generate 40-character random string.
-
-ENTER IN RENDER BLUEPRINT (or skincare-api Environment):
-  ADMIN_API_KEY = (your 40-char random string #1)
-  JWT_SECRET    = (your 40-char random string #2)
-
-SAVE ADMIN_API_KEY somewhere safe — you need it again at:
-  https://skincare-frontend-z72h.onrender.com/dashboard/settings
-
-DO NOT USE IN PRODUCTION:
-  dev-admin-key-change-me
-  dev-jwt-secret-change-me
+[x] Entered in Render Blueprint deploy prompt
+[x] ADMIN_API_KEY saved in production Settings page
 
 ================================================================================
-RENDER BLUEPRINT — DETAILED STEPS (COMPLETED)
+PHASE 3 — RENDER BLUEPRINT DEPLOYMENT (DETAILED STEPS)
 ================================================================================
+[x] C1.  Push repo to GitHub (NabilaShova/SkinCare-AI-Agent, main)
+[x] C2.  Log in https://dashboard.render.com
+[x] C3.  New -> Blueprint
+[x] C4.  Connect GitHub repo, branch main
+[x] C5.  Blueprint name: "Skincare AI Agent"
+[x] C6.  render.yaml detected 3 resources (free tier):
+         - skincare-db (PostgreSQL)
+         - skincare-api (Docker backend)
+         - skincare-frontend (Node frontend)
+[x] C7.  Enter secrets: OPENAI_API_KEY, ADMIN_API_KEY, JWT_SECRET
+[x] C8.  Click "Deploy Blueprint" (not "Apply")
+[x] C9.  Wait for all services Live (5-15 min)
+[x] C10. Copy URLs:
+         Frontend: https://skincare-frontend-z72h.onrender.com
+         API:      https://skincare-api-68pp.onrender.com
 
-[x] C1. Push repo to GitHub
-      https://github.com/NabilaShova/SkinCare-AI-Agent (main)
+ENV VARS SET (skincare-api):
+[x] BACKEND_PUBLIC_URL  = https://skincare-api-68pp.onrender.com
+[x] FRONTEND_PUBLIC_URL = https://skincare-frontend-z72h.onrender.com
+[x] CORS_ORIGINS        = https://skincare-frontend-z72h.onrender.com
+[x] SHOPIFY_APP_URL     = https://skincare-frontend-z72h.onrender.com
+[x] SHOPIFY_API_KEY     = (from Partner Dashboard)
+[x] SHOPIFY_API_SECRET  = (from Partner Dashboard)
 
-[x] C2. Log in to https://dashboard.render.com
+ENV VARS SET (skincare-frontend):
+[x] NEXT_PUBLIC_API_URL         = https://skincare-api-68pp.onrender.com
+[x] NEXT_PUBLIC_SHOPIFY_APP_URL = https://skincare-frontend-z72h.onrender.com
+[x] Manual redeploy after env change (NEXT_PUBLIC_* baked at build time)
 
-[x] C3. New -> Blueprint
+VERIFICATION:
+[x] /health returns {"status":"ok"}
+[x] Landing page loads
+[x] Chat works at /chat
 
-[x] C4. Connect repo NabilaShova/SkinCare-AI-Agent, branch main
+FREE TIER NOTES:
+- No Render payment required
+- Services sleep after 15 min idle (~30-60s cold start)
+- Free Postgres expires ~30 days (upgrade before then)
 
-[x] C5. Blueprint name: Skincare AI Agent (or your choice)
-      Resources detected from render.yaml (free tier):
-        - skincare-db
-        - skincare-api
-        - skincare-frontend
-
-[x] C6. Enter secrets at deploy:
-      OPENAI_API_KEY  = (from OpenAI section above)
-      ADMIN_API_KEY   = (from ADMIN/JWT section above)
-      JWT_SECRET      = (from ADMIN/JWT section above)
-
-[x] C7. Click "Deploy Blueprint" (not "Apply")
-      Waited for all 3 services to build
-
-[x] C8. Live URLs copied:
-      FRONTEND: https://skincare-frontend-z72h.onrender.com
-      API:      https://skincare-api-68pp.onrender.com
-
-[x] C9. Backend health verified:
-      https://skincare-api-68pp.onrender.com/health -> {"status":"ok"}
-
-[x] C10. Frontend landing page verified:
-      https://skincare-frontend-z72h.onrender.com loads correctly
-
-[ ] C11. UPDATE ENV VARS WITH YOUR REAL URLS (DO THIS NOW)
-      See render-env-values.txt for copy-paste reference.
-
-      skincare-api -> Environment -> Add/Update:
-        BACKEND_PUBLIC_URL  = https://skincare-api-68pp.onrender.com
-        FRONTEND_PUBLIC_URL = https://skincare-frontend-z72h.onrender.com
-        CORS_ORIGINS        = https://skincare-frontend-z72h.onrender.com
-        SHOPIFY_APP_URL     = https://skincare-frontend-z72h.onrender.com
-
-      skincare-frontend -> Environment -> Add/Update:
-        NEXT_PUBLIC_API_URL         = https://skincare-api-68pp.onrender.com
-        NEXT_PUBLIC_SHOPIFY_APP_URL = https://skincare-frontend-z72h.onrender.com
-
-      THEN: skincare-frontend -> Manual Deploy -> Deploy latest commit
-      (Required because NEXT_PUBLIC_* are baked in at build time)
-
-[ ] C12. Post-env verification:
-      - Open https://skincare-frontend-z72h.onrender.com/chat
-      - Send a test message (may take 30-60s first time on free tier)
-      - Open https://skincare-frontend-z72h.onrender.com/dashboard/settings
-      - Save ADMIN_API_KEY and confirm no API errors
-
-[ ] C13. Mark Render env setup complete
+See also: render-env-values.txt
 
 ================================================================================
-PHASE A — SHOPIFY PARTNER APP (NEXT AFTER C11)
+PHASE 4 — SHOPIFY PARTNER APP (DETAILED STEPS)
 ================================================================================
-
-YOUR EXACT VALUES:
-  App URL:       https://skincare-frontend-z72h.onrender.com
-  Redirect URL:  https://skincare-api-68pp.onrender.com/api/auth/callback
-
-[ ] A1. Create Partner account: https://dev.shopify.com/dashboard
-[ ] A2. Create dev store (e.g. glow-beauty-dev.myshopify.com)
-[ ] A3. Apps -> Create app manually
-        Name: Skincare AI Support Agent
-        App URL: https://skincare-frontend-z72h.onrender.com
-[ ] A4. Allowed redirection URL:
-        https://skincare-api-68pp.onrender.com/api/auth/callback
-[ ] A5. Scopes: read_products, read_orders, read_customers, read_content
-[ ] A6. Copy Client ID -> SHOPIFY_API_KEY
-        Copy Client secret -> SHOPIFY_API_SECRET
-[ ] A7. Render -> skincare-api -> Environment:
-        SHOPIFY_API_KEY=...
-        SHOPIFY_API_SECRET=...
+[x] A1. Partner account: https://dev.shopify.com/dashboard
+[x] A2. Dev store created: glow-beauty-dev-dmf5uuka.myshopify.com
+[x] A3. Apps -> Create app manually
+         Name: Skincare AI Support Agent
+         App URL: https://skincare-frontend-z72h.onrender.com
+[x] A4. Redirect URL:
+         https://skincare-api-68pp.onrender.com/api/auth/callback
+[x] A5. Scopes (current recommended):
+         read_products, read_orders, read_content
+         (read_customers removed until Protected Customer Data approved)
+[x] A6. Client ID -> SHOPIFY_API_KEY on Render
+[x] A7. Client secret -> SHOPIFY_API_SECRET on Render
 
 ================================================================================
-PHASE D — CONNECT STORE & TEST (AFTER PHASE A)
+PHASE 5 — CONNECT STORE & SYNC (DETAILED STEPS)
+================================================================================
+[x] D1. Open /dashboard/settings
+[x] D2. Save ADMIN_API_KEY
+[x] D3. Enter shop domain -> Connect -> Install app on Shopify
+[x] D4. OAuth redirect back with connected=1
+[x] D5. Sync now -> products imported from live Shopify catalog
+[x] D6. Chat uses live product data
+
+ISSUE RESOLVED — 403 on customers.json:
+  Symptom: Sync failed with 403 Forbidden on customers API
+  Cause:   Shopify Protected Customer Data not approved for custom app
+  Fix:     Partial sync (products continue; customers/orders skipped with warning)
+  Commit:  12d2422
+  Result:  Product sync works; orders/customers optional until PCD approved
+
+================================================================================
+PHASE 6 — PRODUCTION BUG FIXES APPLIED
+================================================================================
+ISSUE: Chat not working / sample prompts did nothing
+  Cause:   Empty Render DB (SEED_DEMO_DATA=false) -> 404 Store not found
+           Frontend failed silently when /api/chat/start failed
+  Fix:     ensure_minimum_store() seeds demo data when DB empty
+           Chat UI shows errors, retry, starter prompts fill input box
+  Commit:  a662e3d
+
+ISSUE: Render Postgres connection string format
+  Fix:     normalize postgresql:// -> postgresql+psycopg:// in session.py
+
+ISSUE: Render PORT binding
+  Fix:     Dockerfile.prod uses ${PORT:-8000}
+
+ISSUE: pgvector not on Render free Postgres
+  Fix:     Graceful fallback; JSON embeddings still work
+
+================================================================================
+WHAT TO DO NEXT (PRIORITY ORDER)
 ================================================================================
 
-[ ] D1. https://skincare-frontend-z72h.onrender.com/dashboard/settings
-[ ] D2. Save ADMIN_API_KEY
-[ ] D3. Enter shop domain -> Connect -> Install app
-[ ] D4. Sync now -> verify product counts
-[ ] D5. Test chat at /chat
+PRIORITY 1 — IMPROVE CHAT ACCURACY (see section below)
+[ ] Upload knowledge docs at /dashboard/knowledge
+[ ] Tune OpenAI model env vars on Render (skincare-api)
+[ ] Re-sync products after adding more to Shopify store
+
+PRIORITY 2 — KNOWLEDGE BASE
+[ ] Upload shipping policy (.txt or .pdf)
+[ ] Upload return/refund policy
+[ ] Upload ingredient FAQ / product usage guides
+[ ] Test chat: "Do you ship internationally?", "Can I use Niacinamide with Vitamin C?"
+
+PRIORITY 3 — ORDER SUPPORT (OPTIONAL)
+[ ] Partner Dashboard -> App -> Protected customer data -> Request access
+[ ] Add read_customers scope back after approval
+[ ] Reconnect store (Settings -> Connect) to refresh token/scopes
+[ ] Sync again — orders and customers should import
+
+PRIORITY 4 — OPERATIONS
+[ ] Schedule sync every 6 hours:
+      $env:API_URL="https://skincare-api-68pp.onrender.com"
+      $env:ADMIN_API_KEY="your-key"
+      .\scripts\production_sync.ps1
+[ ] Set OpenAI usage limits at platform.openai.com
+[ ] Plan Postgres upgrade before 30-day free DB expiry
+
+PRIORITY 5 — PRODUCTION HARDENING (LATER)
+[ ] Custom domain (app.yourdomain.com, api.yourdomain.com)
+[ ] Upgrade Render to Starter plan (no cold starts)
+[ ] Error monitoring (Sentry)
+[ ] Shopify App Store listing for real merchants
 
 ================================================================================
-FREE TIER REMINDERS
-================================================================================
-- Web services sleep after 15 min inactivity (first request ~30-60s)
-- Free Postgres expires after ~30 days
-- No payment required on Render for current free plan
-
-================================================================================
-POST-DEPLOY VERIFICATION (YOUR URLS)
+HOW TO IMPROVE MODEL ACCURACY & CHAT PERFORMANCE
 ================================================================================
 
-Health:
-  curl https://skincare-api-68pp.onrender.com/health
+A. OPENAI MODEL SETTINGS (Render -> skincare-api -> Environment)
+----------------------------------------------------------------
+Highest impact changes:
 
-Start chat:
-  curl -X POST https://skincare-api-68pp.onrender.com/api/chat/start \
-    -H "Content-Type: application/json" \
-    -d "{\"store_id\":1,\"customer_name\":\"Test\"}"
+1) OPENAI_CHAT_MODEL=gpt-4o
+   Best quality for product recommendations and skincare advice.
+   Already set in render.yaml. Confirm it is active on Render.
+
+2) OPENAI_INTENT_MODEL=gpt-4o-mini
+   Keeps intent routing fast and cheap while chat uses gpt-4o.
+
+3) OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+   Good balance of quality and cost for RAG search.
+
+After changing env vars on skincare-api -> Save (auto redeploys).
+
+B. UPLOAD KNOWLEDGE DOCUMENTS (HIGH IMPACT)
+-------------------------------------------
+Chat accuracy for policies and ingredients depends on your docs.
+Go to /dashboard/knowledge and upload:
+  - shipping-policy.txt
+  - return-refund-policy.txt
+  - ingredient-faq.txt
+  - product usage guides per category
+
+More detailed docs = better RAG answers with source grounding.
+
+C. KEEP SHOPIFY CATALOG CURRENT
+---------------------------------
+Run Sync now after adding/editing products in Shopify.
+Or schedule scripts/production_sync.ps1 every 6 hours.
+Product embeddings re-index automatically after sync.
+
+D. RAG TUNING (Render -> skincare-api Environment)
+--------------------------------------------------
+  RAG_TOP_K=5          Number of knowledge chunks retrieved (try 6-8)
+  RAG_MIN_SCORE=0.12   Min similarity threshold (lower=more recall, higher=precision)
+  PRODUCT_TOP_K=5      Products passed to AI (try 6-8)
+  CHAT_HISTORY_LIMIT=12 Messages remembered (try 16 for longer consultations)
+
+E. PROMPT TESTING CHECKLIST
+---------------------------
+Test these after each change:
+  1. "I have oily, acne-prone skin. What moisturizer should I use?"
+  2. "Can I use Niacinamide with Vitamin C?"
+  3. "Build me a morning and night routine for sensitive skin."
+  4. "Do you ship internationally?"
+  5. "Compare your serums for dark spots."
+
+Good answers should:
+  - Only mention products from YOUR Shopify catalog
+  - Explain why each product fits
+  - Ask one follow-up when info is missing (not a long form)
+  - Refuse medical diagnosis politely
+
+F. PERFORMANCE (SPEED, NOT ACCURACY)
+------------------------------------
+Free tier Render:
+  - First request after idle: 30-60 seconds (cold start)
+  - Fix: upgrade skincare-api to Starter ($7/mo) for always-on
+
+OpenAI latency:
+  - gpt-4o is slower than gpt-4o-mini but more accurate
+  - Use gpt-4o-mini for OPENAI_CHAT_MODEL only if speed > quality
+
+Database:
+  - Free Postgres on Render may add latency under load
+  - Upgrade DB before 30-day expiry
+
+G. WHAT NOT TO DO
+-----------------
+  - Do not set OPENAI_API_KEY in frontend (backend only)
+  - Do not use localhost URLs in production env vars
+  - Do not skip frontend redeploy after changing NEXT_PUBLIC_*
+  - Do not expect order lookup until orders sync (PCD approval)
+
+================================================================================
+RENDER ENV QUICK REFERENCE (YOUR DEPLOYMENT)
+================================================================================
+
+skincare-api:
+  BACKEND_PUBLIC_URL=https://skincare-api-68pp.onrender.com
+  FRONTEND_PUBLIC_URL=https://skincare-frontend-z72h.onrender.com
+  CORS_ORIGINS=https://skincare-frontend-z72h.onrender.com
+  SHOPIFY_APP_URL=https://skincare-frontend-z72h.onrender.com
+  OPENAI_CHAT_MODEL=gpt-4o
+  OPENAI_INTENT_MODEL=gpt-4o-mini
+  OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+  SEED_DEMO_DATA=false
+  ENVIRONMENT=production
+
+skincare-frontend:
+  NEXT_PUBLIC_API_URL=https://skincare-api-68pp.onrender.com
+  NEXT_PUBLIC_SHOPIFY_APP_URL=https://skincare-frontend-z72h.onrender.com
+
+================================================================================
+TROUBLESHOOTING REFERENCE
+================================================================================
+
+Chat not loading:
+  -> Check NEXT_PUBLIC_API_URL, redeploy frontend
+
+Chat 404 Store not found:
+  -> Fixed in a662e3d; redeploy skincare-api
+
+Sync 403 customers:
+  -> Fixed in 12d2422; products still sync; PCD approval for full sync
+
+OAuth redirect mismatch:
+  -> Redirect must be https://skincare-api-68pp.onrender.com/api/auth/callback
+
+Slow first message:
+  -> Free tier cold start; wait 60s or upgrade plan
 
 ================================================================================
 CURRENT STATUS
 ================================================================================
-RENDER DEPLOY:     LIVE (free tier)
-NEXT ACTION:       Complete Step C11 (env vars + frontend redeploy)
-THEN:              Phase A Shopify app with URLs above
+DEPLOYMENT:    COMPLETE AND WORKING
+SHOPIFY:       CONNECTED, PRODUCTS SYNCING
+CHAT:          WORKING ON PRODUCTION
+NEXT FOCUS:    Knowledge upload + model tuning (see above)
 ================================================================================

@@ -13,11 +13,18 @@ SHOPIFY_APP_URL=https://skincare-frontend-z72h.onrender.com
 NEXT_PUBLIC_API_URL=https://skincare-api-68pp.onrender.com
 NEXT_PUBLIC_SHOPIFY_APP_URL=https://skincare-frontend-z72h.onrender.com
 
-# --- Shopify Partner Dashboard (Phase A) ---
-# App URL:
-#   https://skincare-frontend-z72h.onrender.com
-# Allowed redirection URL:
-#   https://skincare-api-68pp.onrender.com/api/auth/callback
+# --- Shopify Partner Dashboard ---
+# App URL:       https://skincare-frontend-z72h.onrender.com
+# Redirect URL:  https://skincare-api-68pp.onrender.com/api/auth/callback
+# Scopes:        read_products, read_orders, read_content
+# Dev store:     glow-beauty-dev-dmf5uuka.myshopify.com (connected)
+
+# --- Optional accuracy tuning (skincare-api) ---
+# OPENAI_CHAT_MODEL=gpt-4o
+# OPENAI_INTENT_MODEL=gpt-4o-mini
+# RAG_TOP_K=6
+# PRODUCT_TOP_K=6
+# CHAT_HISTORY_LIMIT=16
 
 # IMPORTANT: After updating skincare-frontend env vars, click
 # Manual Deploy -> Deploy latest commit (rebuild required).
