@@ -8,6 +8,7 @@ import { apiUrl, fetcher } from '@/lib/api';
 interface MessageItem {
   role: 'user' | 'assistant';
   content: string;
+  id?: number;
 }
 
 const starterPrompts = [
@@ -25,6 +26,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<number, 'idle' | 'sending' | 'helpful' | 'not_helpful'>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const startConversation = useCallback(async () => {
@@ -104,6 +106,27 @@ export default function ChatPage() {
     setError('');
   };
 
+  const handleFeedback = async (messageId: number, helpful: boolean) => {
+    setFeedbackByMessageId((current) => ({ ...current, [messageId]: 'sending' }));
+    try {
+      const result = await fetcher('/chat/feedback', {
+        method: 'POST',
+        body: JSON.stringify({ message_id: messageId, helpful }),
+      });
+      setFeedbackByMessageId((current) => ({
+        ...current,
+        [messageId]: helpful ? 'helpful' : 'not_helpful',
+      }));
+      if (result?.learned) {
+        setError('');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Feedback failed';
+      setError(`Could not save feedback: ${message}`);
+      setFeedbackByMessageId((current) => ({ ...current, [messageId]: 'idle' }));
+    }
+  };
+
   const ready = !loading && conversationId !== null;
 
   return (
@@ -148,7 +171,15 @@ export default function ChatPage() {
               </div>
             ) : (
               messages.map((message, index) => (
-                <ChatBubble key={`${message.role}-${index}`} role={message.role} message={message.content} />
+                <ChatBubble
+                  key={message.id ?? `${message.role}-${index}`}
+                  role={message.role}
+                  message={message.content}
+                  messageId={message.id}
+                  showFeedback={message.role === 'assistant' && index > 0 && Boolean(message.id)}
+                  onFeedback={handleFeedback}
+                  feedbackState={message.id ? feedbackByMessageId[message.id] ?? 'idle' : 'idle'}
+                />
               ))
             )}
             {sending ? (

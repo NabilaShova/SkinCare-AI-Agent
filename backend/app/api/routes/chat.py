@@ -9,6 +9,7 @@ from app.core.rate_limit import enforce_rate_limit
 from app.db.models import Conversation, Message, Store
 from app.db.session import get_db
 from app.services.agent import generate_agent_reply
+from app.services.chat_learning import record_chat_feedback
 
 router = APIRouter()
 
@@ -33,6 +34,13 @@ class ChatMessageRequest(BaseModel):
 class ChatMessageItem(BaseModel):
     role: str
     content: str
+    id: Optional[int] = None
+
+
+class ChatFeedbackRequest(BaseModel):
+    message_id: int
+    helpful: bool
+    correction: Optional[str] = None
 
 
 class ChatMessageResponse(BaseModel):
@@ -106,7 +114,7 @@ def get_chat(conversation_id: int, db: Session = Depends(get_db)) -> Any:
 
     store = db.query(Store).filter(Store.id == conversation.store_id).first()
     messages = [
-        ChatMessageItem(role=message.role, content=message.content)
+        ChatMessageItem(role=message.role, content=message.content, id=message.id)
         for message in conversation.messages
     ]
     return ChatConversationResponse(
@@ -153,8 +161,9 @@ def send_chat_message(payload: ChatMessageRequest, request: Request, db: Session
     db.add(assistant_message)
     db.commit()
 
+    db.refresh(assistant_message)
     messages = [
-        ChatMessageItem(role=message.role, content=message.content)
+        ChatMessageItem(role=message.role, content=message.content, id=message.id)
         for message in (
             db.query(Message)
             .filter(Message.conversation_id == conversation.id)
@@ -166,8 +175,40 @@ def send_chat_message(payload: ChatMessageRequest, request: Request, db: Session
     db.refresh(conversation)
     return ChatMessageResponse(
         conversation_id=conversation.id,
-        assistant_reply=ChatMessageItem(role="assistant", content=agent_result["content"]),
+        assistant_reply=ChatMessageItem(
+            role="assistant",
+            content=agent_result["content"],
+            id=assistant_message.id,
+        ),
         messages=messages,
         intent=agent_result["intent"],
         is_escalated=conversation.is_escalated,
     )
+
+
+@router.post("/feedback")
+def submit_chat_feedback(
+    payload: ChatFeedbackRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Any:
+    enforce_rate_limit(request, namespace="chat", limit_per_minute=settings.RATE_LIMIT_CHAT_PER_MINUTE)
+    try:
+        result = record_chat_feedback(
+            db,
+            message_id=payload.message_id,
+            helpful=payload.helpful,
+            correction=payload.correction,
+            auto_learn=settings.CHAT_AUTO_LEARN_ON_FEEDBACK,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        **result,
+        "message": (
+            "Thanks — this answer was added to the store knowledge base for future chats."
+            if result.get("learned")
+            else "Thanks for your feedback."
+        ),
+    }

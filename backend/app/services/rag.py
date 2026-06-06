@@ -104,13 +104,138 @@ REQUESTED_PRODUCT_TYPES: dict[str, list[str]] = {
     "sunscreen": ["sunscreen", "spf", "sunblock", "sun protection"],
     "cleanser": ["cleanser", "cleansing", "face wash", "wash", "foam"],
     "serum": ["serum", "essence", "ampoule"],
-    "moisturizer": ["moisturizer", "moistur", "cream", "lotion", "gel"],
+    "moisturizer": ["moisturizer", "moistur", "cream", "lotion"],
     "toner": ["toner", "toning"],
     "mask": ["mask", "sheet mask"],
     "exfoliant": ["exfoliant", "peel", "bha", "aha"],
+    "spot treatment": ["spot treatment", "pimple patch", "acne patch", "hydrocolloid"],
     "eye care": ["eye cream", "eye serum", "eye gel"],
     "lip care": ["lip balm", "lip mask", "lip treatment"],
 }
+
+SKIN_TYPES = ["oily", "dry", "combination", "sensitive", "normal"]
+
+CONCERN_SIGNALS: dict[str, dict[str, Any]] = {
+    "acne": {
+        "match": [
+            "acne",
+            "blemish",
+            "breakout",
+            "pimple",
+            "blackhead",
+            "whitehead",
+            "clogged pore",
+            "zit",
+            "cystic",
+        ],
+        "ingredients": [
+            "salicylic",
+            "bha",
+            "niacinamide",
+            "tea tree",
+            "azelaic",
+            "benzoyl",
+            "pha",
+            "sulfur",
+        ],
+        "preferred_types": ["cleanser", "serum", "exfoliant", "toner", "spot treatment"],
+        "tags": ["acne", "blemish", "bha", "salicylic", "clarif", "non-comedogenic", "spot"],
+        "label": "acne prevention",
+    },
+    "aging": {
+        "match": ["fine line", "wrinkle", "anti-aging", "anti aging", "mature skin", "firming"],
+        "ingredients": ["retinol", "peptide", "renewal", "collagen", "bakuchiol"],
+        "preferred_types": ["serum", "moisturizer", "eye care"],
+        "tags": ["anti-aging", "retinol", "peptide", "line", "renewal"],
+        "label": "anti-aging",
+    },
+    "dryness": {
+        "match": ["dry skin", "dryness", "dehydrat", "flaky", "tight skin", "barrier repair"],
+        "ingredients": ["ceramide", "hyaluronic", "squalane", "shea", "glycerin", "barrier"],
+        "preferred_types": ["moisturizer", "serum", "cleanser"],
+        "tags": ["dry", "hydrat", "barrier", "ceramide", "repair"],
+        "label": "dry or dehydrated skin",
+    },
+    "sensitivity": {
+        "match": ["sensitive", "irritat", "rosacea", "reactive skin"],
+        "ingredients": ["fragrance-free", "centella", "aloe", "ceramide", "oat", "soothing"],
+        "preferred_types": ["cleanser", "moisturizer", "sunscreen", "serum"],
+        "tags": ["sensitive", "gentle", "soothing", "fragrance-free", "barrier"],
+        "label": "sensitive skin",
+    },
+    "hyperpigmentation": {
+        "match": [
+            "dark spot",
+            "hyperpigmentation",
+            "uneven tone",
+            "melasma",
+            "brighten",
+            "discoloration",
+        ],
+        "ingredients": ["vitamin c", "ascorbic", "niacinamide", "azelaic", "tranexamic", "bright"],
+        "preferred_types": ["serum", "moisturizer", "sunscreen"],
+        "tags": ["bright", "tone", "dark spot", "vitamin c", "hyperpigmentation"],
+        "label": "dark spots and uneven tone",
+    },
+    "redness": {
+        "match": ["redness", "red skin", "inflam"],
+        "ingredients": ["niacinamide", "centella", "azelaic", "soothing", "aloe"],
+        "preferred_types": ["serum", "moisturizer", "cleanser"],
+        "tags": ["redness", "soothing", "calm", "rosacea"],
+        "label": "redness and irritation",
+    },
+}
+
+
+def _contains_phrase(text: str, phrase: str) -> bool:
+    lowered = text.lower()
+    if " " in phrase:
+        return phrase in lowered
+    return bool(re.search(rf"\b{re.escape(phrase)}\b", lowered))
+
+
+def _message_mentions_skin_type(message: str) -> bool:
+    return any(_contains_phrase(message, skin_type) for skin_type in SKIN_TYPES)
+
+
+PROFILE_CONCERN_MAP: dict[str, str] = {
+    "acne": "acne",
+    "dehydration": "dryness",
+    "fine lines": "aging",
+    "wrinkles": "aging",
+    "hyperpigmentation": "hyperpigmentation",
+    "dark spots": "hyperpigmentation",
+    "redness": "redness",
+    "uneven skin tone": "hyperpigmentation",
+    "enlarged pores": "acne",
+}
+
+
+def detect_concerns(query: str, profile: dict[str, Any] | None = None) -> list[str]:
+    profile = profile or {}
+    lowered = query.lower()
+    found: list[str] = []
+    for concern, config in CONCERN_SIGNALS.items():
+        if any(term in lowered for term in config["match"]):
+            found.append(concern)
+    for concern in profile.get("concerns", []):
+        mapped = PROFILE_CONCERN_MAP.get(str(concern).lower())
+        if mapped and mapped not in found:
+            found.append(mapped)
+    return found
+
+
+def effective_profile_for_retrieval(message: str, profile: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Drop stale skin-type bias when the customer asks about a new concern without restating skin type."""
+    profile = dict(profile or {})
+    query_concerns = detect_concerns(message, None)
+    if query_concerns and not _message_mentions_skin_type(message):
+        profile.pop("skin_type", None)
+    return profile
+
+
+def concern_label(concern: str) -> str:
+    return CONCERN_SIGNALS.get(concern, {}).get("label", concern.replace("_", " "))
 
 
 def detect_requested_product_types(query: str) -> set[str]:
@@ -409,7 +534,8 @@ def search_knowledge(
                 intent=intent,
                 policy_topic=policy_topic,
             )
-            + _keyword_overlap_boost(query, record.chunk_text),
+            + _keyword_overlap_boost(query, record.chunk_text)
+            + (0.18 if (record.meta or {}).get("type") == "chat-learned" else 0.0),
         }
         for record in records
     ]
@@ -420,26 +546,17 @@ def search_knowledge(
     return scored[:limit]
 
 
-PROFILE_HINTS: dict[str, list[str]] = {
-    "oily": ["oil", "niacinamide", "salicylic", "gel", "acne", "pore"],
-    "dry": ["ceramide", "barrier", "cream", "hydrat", "repair"],
+SKIN_TYPE_HINTS: dict[str, list[str]] = {
+    "oily": ["niacinamide", "salicylic", "gel", "lightweight", "pore", "oil-control"],
+    "dry": ["ceramide", "barrier", "cream", "hydrat", "repair", "rich"],
     "combination": ["balance", "gel", "niacinamide", "lightweight"],
     "sensitive": ["fragrance-free", "gentle", "mineral", "barrier", "soothing"],
     "normal": ["daily", "hydrat", "maintain"],
-    "acne": ["salicylic", "niacinamide", "bha", "acne", "clarify"],
-    "hyperpigmentation": ["vitamin c", "bright", "tone", "dark spot"],
-    "dark spots": ["vitamin c", "bright", "tone", "dark spot"],
-    "fine lines": ["retinol", "peptide", "renewal", "anti-aging"],
-    "wrinkles": ["retinol", "peptide", "renewal", "anti-aging"],
-    "redness": ["niacinamide", "soothing", "barrier", "gentle"],
-    "dehydration": ["hyaluronic", "hydrat", "ceramide"],
-    "uneven skin tone": ["vitamin c", "bright", "tone"],
-    "enlarged pores": ["niacinamide", "salicylic", "pore"],
-    "brightening": ["vitamin c", "bright", "tone"],
-    "aging": ["retinol", "peptide", "line", "renewal"],
-    "sun protection": ["spf", "sunscreen", "mineral"],
+}
+
+PRODUCT_TYPE_HINTS: dict[str, list[str]] = {
     "cleanser": ["cleanser", "foam", "wash"],
-    "moisturizer": ["moistur", "hydrat", "cream", "gel"],
+    "moisturizer": ["moistur", "hydrat", "cream"],
     "serum": ["serum"],
     "sunscreen": ["spf", "sunscreen"],
     "routine": ["cleanser", "serum", "moistur", "sunscreen"],
@@ -450,16 +567,88 @@ def _keyword_terms(query: str, profile: dict[str, Any] | None = None) -> set[str
     terms = set(re.findall(r"[a-z0-9]+", query.lower()))
     profile = profile or {}
 
-    for key, hints in PROFILE_HINTS.items():
-        if key in query.lower():
+    for skin_type, hints in SKIN_TYPE_HINTS.items():
+        if _contains_phrase(query, skin_type):
             terms.update(hints)
 
+    for product_type, hints in PRODUCT_TYPE_HINTS.items():
+        if _contains_phrase(query, product_type):
+            terms.update(hints)
+
+    for concern, config in CONCERN_SIGNALS.items():
+        if any(term in query.lower() for term in config["match"]):
+            terms.update(config["ingredients"])
+            terms.update(config["tags"])
+
     if profile.get("skin_type"):
-        terms.update(PROFILE_HINTS.get(str(profile["skin_type"]).lower(), []))
-    for concern in profile.get("concerns", []):
-        terms.update(PROFILE_HINTS.get(str(concern).lower(), []))
+        terms.update(SKIN_TYPE_HINTS.get(str(profile["skin_type"]).lower(), []))
+
+    for concern in detect_concerns(query, profile):
+        config = CONCERN_SIGNALS.get(concern, {})
+        terms.update(config.get("ingredients", []))
+        terms.update(config.get("tags", []))
 
     return terms
+
+
+def _concern_score(product: Product, concerns: list[str]) -> float:
+    if not concerns:
+        return 0.0
+
+    haystack = _product_haystack(product)
+    score = 0.0
+    for concern in concerns:
+        config = CONCERN_SIGNALS.get(concern, {})
+        ingredient_hits = sum(1 for term in config.get("ingredients", []) if term in haystack)
+        tag_hits = sum(1 for term in config.get("tags", []) if term in haystack)
+        score += ingredient_hits * 2.5 + tag_hits * 2.0
+
+        preferred_types = config.get("preferred_types", [])
+        if preferred_types:
+            if any(_product_matches_type(product, product_type) for product_type in preferred_types):
+                score += 8.0
+            elif _product_matches_type(product, "moisturizer") and concern == "acne":
+                score -= 4.0
+
+    return score
+
+
+def pick_products_for_concerns(
+    products: list[Product],
+    concerns: list[str],
+    limit: int = 3,
+) -> list[Product]:
+    if not products or not concerns:
+        return products[:limit]
+
+    primary = concerns[0]
+    config = CONCERN_SIGNALS.get(primary, {})
+    preferred_types = config.get("preferred_types", [])
+    picks: list[Product] = []
+    seen_ids: set[int] = set()
+
+    ranked = sorted(products, key=lambda product: _concern_score(product, concerns), reverse=True)
+
+    for product_type in preferred_types:
+        for product in ranked:
+            if product.id in seen_ids:
+                continue
+            if _product_matches_type(product, product_type):
+                picks.append(product)
+                seen_ids.add(product.id)
+                break
+        if len(picks) >= limit:
+            return picks[:limit]
+
+    for product in ranked:
+        if product.id in seen_ids:
+            continue
+        picks.append(product)
+        seen_ids.add(product.id)
+        if len(picks) >= limit:
+            break
+
+    return picks
 
 
 def _product_haystack(product: Product) -> str:
@@ -509,6 +698,8 @@ def search_products(
 
     requested_types = detect_requested_product_types(retrieval_query)
 
+    active_concerns = detect_concerns(retrieval_query, profile)
+
     def score_product(product: Product) -> float:
         haystack = _product_haystack(product)
         keyword_score = sum(1 for term in query_terms if term in haystack)
@@ -521,6 +712,8 @@ def search_products(
         for concern in (profile or {}).get("concerns", []):
             if str(concern).lower() in haystack:
                 profile_bonus += 1.5
+
+        concern_bonus = _concern_score(product, active_concerns)
 
         type_bonus = 0.0
         if requested_types:
@@ -538,7 +731,7 @@ def search_products(
                 elif amount >= 3500:
                     budget_bonus -= 2.0
 
-        return keyword_score + semantic_score + profile_bonus + type_bonus + budget_bonus
+        return keyword_score + semantic_score + profile_bonus + concern_bonus + type_bonus + budget_bonus
 
     ranked = sorted(products, key=score_product, reverse=True)
     if requested_types and enforce_product_type:

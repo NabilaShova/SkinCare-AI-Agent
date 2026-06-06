@@ -10,12 +10,17 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models import Conversation, Message, Order, Product
 from app.services.rag import (
+    CONCERN_SIGNALS,
     build_retrieval_query,
+    concern_label,
+    detect_concerns,
     detect_policy_topic,
     detect_requested_product_types,
+    effective_profile_for_retrieval,
     filter_policy_hits,
     filter_products_for_query,
     format_knowledge_context,
+    pick_products_for_concerns,
     search_knowledge,
     search_products,
 )
@@ -252,9 +257,11 @@ def _format_products(products: list[Product]) -> str:
 def _intent_instructions(intent: str) -> str:
     instructions = {
         "product_recommendation": (
-            "Act as a beauty advisor. Stay on the customer's current request from recent messages. "
+            "Act as a beauty advisor. Match the customer's current concern or goal first — do not assume oily skin for acne. "
+            "For acne or breakout questions, prioritize cleansers, BHA/salicylic treatments, and serums before moisturizers. "
+            "For dryness, prioritize rich moisturizers and barrier-repair ingredients. For dark spots, prioritize vitamin C serums and SPF. "
             "If they asked for a product type (e.g. sunscreen), recommend only that type unless they broaden the ask. "
-            "Ask one focused follow-up only if skin type or concern is still missing. "
+            "Ask one focused follow-up for skin type only when it would materially change the recommendation. "
             "Recommend 1-3 matching products with short reasons. Do not repeat full product descriptions verbatim. "
             "If the customer agreed to a routine, build a concise morning and/or night routine using only catalog products."
         ),
@@ -484,6 +491,32 @@ def _routine_fallback_answer(products: list[Product], profile: dict[str, Any]) -
     return "\n".join(lines)
 
 
+def _concern_product_reason(product: Product, concern: str) -> str:
+    haystack = _product_haystack(product)
+    config = CONCERN_SIGNALS.get(concern, {})
+    ingredient_hits = [term for term in config.get("ingredients", []) if term in haystack]
+    if ingredient_hits:
+        return f"contains {ingredient_hits[0]}"
+    tag_hits = [term for term in config.get("tags", []) if term in haystack]
+    if tag_hits:
+        return f"good for {tag_hits[0]}"
+    return _sanitize_product_summary(product)
+
+
+def _product_haystack(product: Product) -> str:
+    return " ".join(
+        filter(
+            None,
+            [
+                product.title,
+                product.description or "",
+                product.ingredients or "",
+                " ".join(product.collections or []),
+            ],
+        )
+    ).lower()
+
+
 def _product_fallback_answer(
     state: AgentState,
     products: list[Product],
@@ -496,6 +529,7 @@ def _product_fallback_answer(
 
     retrieval_query = build_retrieval_query(state["user_message"], profile=profile, history=history)
     requested_types = detect_requested_product_types(retrieval_query)
+    concerns = detect_concerns(retrieval_query, profile)
     scoped = filter_products_for_query(products, retrieval_query)
 
     if not scoped:
@@ -503,18 +537,38 @@ def _product_fallback_answer(
             "I'd love to help. Tell me your skin type, main concerns, and whether you want a single product or a full routine."
         )
 
-    if not profile.get("skin_type") and state["user_message"].lower().strip() in {s.lower() for s in SKIN_TYPES}:
+    skin_type = profile.get("skin_type")
+
+    if not skin_type and state["user_message"].lower().strip() in {s.lower() for s in SKIN_TYPES}:
         pass
-    elif not profile.get("skin_type") and len(state["user_message"].split()) <= 4:
+    elif not skin_type and not concerns and len(state["user_message"].split()) <= 4:
         names = ", ".join(item.title for item in scoped[:3])
         return f"I can help with that. Relevant options in your store include: {names}. What is your skin type and main concern?"
 
+    if concerns and not requested_types:
+        picks = pick_products_for_concerns(scoped, concerns, limit=3)
+        primary = concerns[0]
+        label = concern_label(primary)
+        lines = [f"For {label}, I'd start with these from your catalog:"]
+        for index, product in enumerate(picks, start=1):
+            reason = _concern_product_reason(product, primary)
+            lines.append(f"{index}. {product.title} ({product.price}) — {reason}.")
+        if not skin_type:
+            lines.append(
+                "What's your skin type (oily, dry, combination, or sensitive)? "
+                "That helps me fine-tune cleanser and moisturizer choices."
+            )
+        else:
+            lines.append("Would you like me to build a morning and night routine from these?")
+        return " ".join(lines)
+
     lead = scoped[0]
     extras = [item for item in scoped[1:3] if item.id != lead.id]
-    response = (
-        f"Based on what you shared, I'd start with {lead.title} ({lead.price}). "
-        f"{_sanitize_product_summary(lead)}"
-    )
+    if skin_type:
+        opener = f"For {skin_type} skin, I'd start with {lead.title} ({lead.price})."
+    else:
+        opener = f"I'd start with {lead.title} ({lead.price})."
+    response = f"{opener} {_sanitize_product_summary(lead)}"
     if extras:
         names = ", ".join(item.title for item in extras)
         response += f" Other strong options: {names}."
@@ -632,6 +686,18 @@ def _extract_profile(message: str, existing: dict[str, Any]) -> dict[str, Any]:
     for concern in PROFILE_CONCERNS:
         if concern in lowered and concern not in concerns:
             concerns.append(concern)
+    for concern_key, config in CONCERN_SIGNALS.items():
+        if any(term in lowered for term in config["match"]):
+            mapped = {
+                "acne": "acne",
+                "aging": "fine lines",
+                "dryness": "dehydration",
+                "sensitivity": "redness",
+                "hyperpigmentation": "hyperpigmentation",
+                "redness": "redness",
+            }.get(concern_key, concern_key)
+            if mapped not in concerns:
+                concerns.append(mapped)
     if concerns:
         profile["concerns"] = concerns
 
@@ -663,7 +729,8 @@ def _node_gather_context(
     profile: dict[str, Any],
     last_intent: str | None = None,
 ) -> AgentState:
-    retrieval_query = build_retrieval_query(state["user_message"], profile=profile, history=history)
+    active_profile = effective_profile_for_retrieval(state["user_message"], profile)
+    retrieval_query = build_retrieval_query(state["user_message"], profile=active_profile, history=history)
     product_limit = settings.PRODUCT_TOP_K
     if _wants_routine_build(state["user_message"], history, last_intent):
         retrieval_query = f"{retrieval_query}. morning night routine cleanser serum moisturizer sunscreen"
@@ -676,7 +743,7 @@ def _node_gather_context(
         db,
         retrieval_query,
         state["store_id"],
-        profile=profile,
+        profile=active_profile,
         limit=product_limit,
         enforce_product_type=not building_routine,
     )
@@ -719,7 +786,7 @@ def _node_gather_context(
         "knowledge_hits": document_hits,
         "policy_topic": policy_topic,
         "orders": orders_text,
-        "profile": profile,
+        "profile": active_profile,
     }
     state["sources"] = [hit["source"] for hit in knowledge_hits]
     return state
@@ -781,6 +848,7 @@ def generate_agent_reply(
 
     conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     profile = (conversation.meta or {}).get("profile", {}) if conversation else {}
+    profile = _extract_profile(user_message, profile)
     last_intent = (conversation.meta or {}).get("last_intent") if conversation else None
 
     initial_state: AgentState = {

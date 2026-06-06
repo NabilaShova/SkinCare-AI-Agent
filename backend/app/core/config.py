@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     RAG_MIN_SCORE: float = 0.12
     PRODUCT_TOP_K: int = 5
     CHAT_HISTORY_LIMIT: int = 12
+    CHAT_AUTO_LEARN_ON_FEEDBACK: bool = True
 
     RATE_LIMIT_CHAT_PER_MINUTE: int = 30
     RATE_LIMIT_ADMIN_PER_MINUTE: int = 120

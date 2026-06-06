@@ -171,8 +171,26 @@ Each response uses:
 
 - Store product catalog from PostgreSQL (synced from Shopify)
 - Knowledge chunks and embeddings from uploaded documents
+- **Learned chat FAQs** promoted from helpful customer conversations
 - Conversation profile memory (skin type, concerns, preferences)
 - Safety rules for medical and escalation scenarios
+
+### Learning from chat (continuous improvement)
+
+This app does **not** retrain the OpenAI model. Instead it uses **RAG learning**:
+
+1. Customer clicks **Yes** (helpful) under an assistant reply in `/chat`
+2. Backend saves that **question + answer** pair as a new knowledge document (`chat-learned-message-*.txt`)
+3. The pair is embedded and indexed like uploaded policy files
+4. Future similar questions retrieve the learned FAQ with a small relevance boost
+
+View learned files in **Dashboard → Knowledge** (filenames start with `chat-learned-message-`).
+
+To disable auto-learning, set on the API service:
+
+```env
+CHAT_AUTO_LEARN_ON_FEEDBACK=false
+```
 
 ## Database
 
@@ -190,6 +208,7 @@ Main tables: `stores`, `products`, `customers`, `orders`, `conversations`, `mess
 
 - `POST /api/chat/start`
 - `POST /api/chat/message`
+- `POST /api/chat/feedback` — helpful / not helpful; promotes Q&A to knowledge on helpful
 - `GET /api/chat/{conversation_id}`
 
 ### Admin
