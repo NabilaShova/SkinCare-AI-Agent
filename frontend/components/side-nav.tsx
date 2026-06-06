@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 const nav = [
+  { label: 'Customer Chat', href: '/chat' },
   { label: 'Overview', href: '/dashboard' },
   { label: 'Conversations', href: '/dashboard/conversations' },
   { label: 'Knowledge Base', href: '/dashboard/knowledge' },

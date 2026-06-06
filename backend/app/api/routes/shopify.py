@@ -18,6 +18,21 @@ def sync_shopify_data(store_id: int, db: Session = Depends(get_db)) -> Any:
     return {'status': 'sync started', 'store_id': store_id}
 
 @router.get('/products')
-def list_products(store_id: int, db: Session = Depends(get_db)) -> Any:
-    # Placeholder: return product catalog for storefront retrieval and recommendations.
-    return {'items': []}
+def list_products(store_id: int = 1, db: Session = Depends(get_db)) -> Any:
+    from app.db.models import Product
+
+    products = db.query(Product).filter(Product.store_id == store_id).all()
+    return {
+        'items': [
+            {
+                'id': product.id,
+                'title': product.title,
+                'description': product.description,
+                'ingredients': product.ingredients,
+                'price': product.price,
+                'available': product.available,
+                'collections': product.collections,
+            }
+            for product in products
+        ]
+    }

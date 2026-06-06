@@ -12,12 +12,12 @@ export default function HomePage() {
               Connect your Shopify store, sync products, ingest knowledge documents, and deliver intelligent customer support with product recommendations.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Link href="/dashboard" className="rounded-full bg-pink-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-pink-400">
-                Open dashboard
+              <Link href="/chat" className="rounded-full bg-pink-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-pink-400">
+                Chat with AI advisor
               </Link>
-              <a href="#architecture" className="rounded-full border border-slate-700 px-6 py-3 text-sm text-slate-200 transition hover:bg-slate-800/80">
-                Learn more
-              </a>
+              <Link href="/dashboard" className="rounded-full border border-slate-700 px-6 py-3 text-sm text-slate-200 transition hover:bg-slate-800/80">
+                Open admin dashboard
+              </Link>
             </div>
           </div>
         </div>

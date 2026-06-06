@@ -34,7 +34,7 @@ class ProductRead(BaseModel):
 class ConversationCreate(BaseModel):
     store_id: int
     customer_name: Optional[str]
-    metadata: Optional[Any]
+    meta: Optional[Any] = None
 
 class ConversationRead(BaseModel):
     id: int
@@ -42,26 +42,26 @@ class ConversationRead(BaseModel):
     customer_name: Optional[str]
     status: str
     is_escalated: bool
-    metadata: Optional[Any]
+    meta: Optional[Any] = None
     created_at: datetime
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class MessageCreate(BaseModel):
     conversation_id: int
     role: str
     content: str
-    metadata: Optional[Any]
+    meta: Optional[Any] = None
 
 class MessageRead(BaseModel):
     id: int
     conversation_id: int
     role: str
     content: str
-    metadata: Optional[Any]
+    meta: Optional[Any] = None
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
