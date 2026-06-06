@@ -12,7 +12,8 @@ Goal: Complete production readiness with Shopify OAuth, live sync, security,
 PROGRESS SUMMARY
 --------------------------------------------------------------------------------
 CODE IMPLEMENTATION:     [##########] 100% COMPLETE (Steps 01-11)
-RENDER DEPLOYMENT:       [          ]   0% NOT STARTED
+GIT PUSH TO GITHUB:      [##########] 100% COMPLETE (commit 4599b27)
+RENDER DEPLOYMENT:       [####------]  40% IN PROGRESS (Dashboard step needed)
 SHOPIFY APP SETUP:       [          ]   0% NOT STARTED
 SHOPIFY STORE CONNECT:   [          ]   0% NOT STARTED
 PRODUCTION OPERATIONS:   [          ]   0% NOT STARTED
@@ -134,20 +135,33 @@ CODE IMPLEMENTATION LOG (COMPLETED)
 [STEP 11] PRODUCTION DEPLOYMENT ARTIFACTS
 - docker-compose.prod.yml, render.yaml, .env.example, shopify.app.toml.example
 
+[STEP 12] RENDER COMPATIBILITY FIXES (2026-06-06)
+- backend/app/db/session.py: normalize postgresql:// -> postgresql+psycopg://
+- backend/app/db/init_db.py: graceful pgvector extension fallback for Render Postgres
+- backend/Dockerfile.prod: bind to Render PORT env var
+- render.yaml: frontend uses Node runtime (NEXT_PUBLIC_* available at build time)
+- scripts/render_blueprint_launch.ps1 added
+
+[STEP 13] GIT PUSH COMPLETED (2026-06-06)
+- Remote: https://github.com/NabilaShova/SkinCare-AI-Agent.git
+- Branch: main
+- Commit: 4599b27 "Add production deployment, Shopify OAuth, and Render Blueprint"
+- Status: pushed successfully to origin/main
+
 ================================================================================
 PHASE C — DEPLOY TO RENDER FIRST (DO THIS BEFORE SHOPIFY APP)
 ================================================================================
 
-[ ] C1. Push repo to GitHub/GitLab/Bitbucket
-      git add .
-      git commit -m "Production ready with Shopify OAuth"
-      git push origin main
+[x] C1. Push repo to GitHub/GitLab/Bitbucket
+      DONE — https://github.com/NabilaShova/SkinCare-AI-Agent (main @ 4599b27)
 
 [ ] C2. Log in to https://dashboard.render.com
 
 [ ] C3. Click "New" -> "Blueprint"
 
-[ ] C4. Connect your Git repository
+[ ] C4. Connect your Git repository:
+      https://github.com/NabilaShova/SkinCare-AI-Agent
+      (Select branch: main)
 
 [ ] C5. Render detects render.yaml and shows 3 resources:
         - skincare-db (PostgreSQL)
@@ -156,20 +170,22 @@ PHASE C — DEPLOY TO RENDER FIRST (DO THIS BEFORE SHOPIFY APP)
 
 [ ] C6. When prompted, enter secret environment variables:
 
+      REQUIRED NOW (deploy will fail without these):
       OPENAI_API_KEY          = sk-...
-      SHOPIFY_API_KEY         = (leave blank for now — add after Phase A)
-      SHOPIFY_API_SECRET      = (leave blank for now — add after Phase A)
-      SHOPIFY_APP_URL         = (leave blank for now — fill after deploy)
-      BACKEND_PUBLIC_URL      = (leave blank for now — fill after deploy)
-      FRONTEND_PUBLIC_URL     = (leave blank for now — fill after deploy)
-      NEXT_PUBLIC_API_URL     = (leave blank for now — fill after deploy)
-      NEXT_PUBLIC_SHOPIFY_APP_URL = (leave blank for now — fill after deploy)
-      CORS_ORIGINS            = (leave blank for now — fill after deploy)
       ADMIN_API_KEY           = generate 32+ char random string
       JWT_SECRET              = generate 32+ char random string
 
-      TIP: You can deploy first with only OPENAI_API_KEY, ADMIN_API_KEY,
-      JWT_SECRET. Add Shopify + URL vars after you have Render URLs.
+      SET AFTER FIRST DEPLOY (when you have Render URLs):
+      BACKEND_PUBLIC_URL      = https://skincare-api.onrender.com
+      FRONTEND_PUBLIC_URL     = https://skincare-frontend.onrender.com
+      NEXT_PUBLIC_API_URL     = https://skincare-api.onrender.com
+      NEXT_PUBLIC_SHOPIFY_APP_URL = https://skincare-frontend.onrender.com
+      CORS_ORIGINS            = https://skincare-frontend.onrender.com
+      SHOPIFY_APP_URL         = https://skincare-frontend.onrender.com
+
+      SET LATER (Phase A — Shopify app):
+      SHOPIFY_API_KEY         = (from Partner Dashboard)
+      SHOPIFY_API_SECRET      = (from Partner Dashboard)
 
 [ ] C7. Click "Apply" and wait for all 3 services to deploy (5-15 min)
 
@@ -442,7 +458,16 @@ Fix: SHOPIFY_API_SECRET must match Client secret in Partner Dashboard
 CURRENT STATUS
 ================================================================================
 CODE:           COMPLETE
-RENDER DEPLOY:  PENDING — start at Phase C1
+GIT PUSH:       COMPLETE (github.com/NabilaShova/SkinCare-AI-Agent @ 4599b27)
+RENDER DEPLOY:  IN PROGRESS — YOU ARE HERE: complete Phase C2-C7 in Render Dashboard
 SHOPIFY APP:    PENDING — start at Phase A1 after Render URLs are known
 STORE CONNECT:  PENDING — start at Phase D1 after Shopify app is configured
+
+NEXT ACTION FOR YOU:
+1. Open https://dashboard.render.com
+2. New -> Blueprint -> connect NabilaShova/SkinCare-AI-Agent (main)
+3. Enter OPENAI_API_KEY, ADMIN_API_KEY, JWT_SECRET when prompted
+4. Click Apply and wait for deploy
+5. Copy skincare-frontend + skincare-api URLs
+6. Update env vars (C11) and redeploy frontend
 ================================================================================
