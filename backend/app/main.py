@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
-from app.db.init_db import init_database, seed_demo_data
+from app.core.config import settings
+from app.db.init_db import ensure_product_indexes, init_database, seed_demo_data
 from app.db.session import SessionLocal
 
 
@@ -13,7 +14,9 @@ async def lifespan(_: FastAPI):
     init_database()
     db = SessionLocal()
     try:
-        seed_demo_data(db)
+        if settings.SEED_DEMO_DATA:
+            seed_demo_data(db)
+        ensure_product_indexes(db)
     finally:
         db.close()
     yield
@@ -26,9 +29,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+cors_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins or ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

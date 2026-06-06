@@ -1,10 +1,11 @@
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.rate_limit import enforce_rate_limit
 from app.db.models import Conversation, Message, Store
 from app.db.session import get_db
 from app.services.agent import generate_agent_reply
@@ -60,7 +61,8 @@ def _resolve_store(db: Session, store_id: Optional[int]) -> Store:
 
 
 @router.post("/start", response_model=StartChatResponse)
-def start_chat(payload: StartChatRequest, db: Session = Depends(get_db)) -> Any:
+def start_chat(payload: StartChatRequest, request: Request, db: Session = Depends(get_db)) -> Any:
+    enforce_rate_limit(request, namespace="chat", limit_per_minute=settings.RATE_LIMIT_CHAT_PER_MINUTE)
     store = _resolve_store(db, payload.store_id)
     greeting = (
         f"Hi! I'm the skincare advisor for {store.name}. "
@@ -118,7 +120,8 @@ def get_chat(conversation_id: int, db: Session = Depends(get_db)) -> Any:
 
 
 @router.post("/message", response_model=ChatMessageResponse)
-def send_chat_message(payload: ChatMessageRequest, db: Session = Depends(get_db)) -> Any:
+def send_chat_message(payload: ChatMessageRequest, request: Request, db: Session = Depends(get_db)) -> Any:
+    enforce_rate_limit(request, namespace="chat", limit_per_minute=settings.RATE_LIMIT_CHAT_PER_MINUTE)
     conversation = db.query(Conversation).filter(Conversation.id == payload.conversation_id).first()
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")

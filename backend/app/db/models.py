@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, JSON
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, JSON, UniqueConstraint
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -12,6 +12,9 @@ class Store(Base):
     shopify_domain = Column(String(255), unique=True, index=True, nullable=False)
     access_token = Column(String(1024), nullable=False)
     name = Column(String(255), nullable=True)
+    scopes = Column(String(1024), nullable=True)
+    last_synced_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     products = relationship("Product", back_populates="store")
@@ -20,6 +23,7 @@ class Store(Base):
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = (UniqueConstraint("store_id", "shopify_product_id", name="uq_store_product"),)
 
     id = Column(Integer, primary_key=True, index=True)
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
@@ -39,9 +43,11 @@ class Product(Base):
 
 class Customer(Base):
     __tablename__ = "customers"
+    __table_args__ = (UniqueConstraint("store_id", "shopify_customer_id", name="uq_store_customer"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    shopify_customer_id = Column(String(128), unique=True, nullable=False)
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
+    shopify_customer_id = Column(String(128), nullable=False)
     email = Column(String(320), nullable=True)
     first_name = Column(String(128), nullable=True)
     last_name = Column(String(128), nullable=True)
@@ -50,10 +56,11 @@ class Customer(Base):
 
 class Order(Base):
     __tablename__ = "orders"
+    __table_args__ = (UniqueConstraint("store_id", "shopify_order_id", name="uq_store_order"),)
 
     id = Column(Integer, primary_key=True, index=True)
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
-    shopify_order_id = Column(String(128), unique=True, nullable=False)
+    shopify_order_id = Column(String(128), nullable=False)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
     status = Column(String(64), nullable=True)
     tracking_number = Column(String(256), nullable=True)

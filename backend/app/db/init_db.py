@@ -13,7 +13,7 @@ from app.db.models import (
     Store,
 )
 from app.db.session import engine
-from app.services.rag import chunk_text, generate_embeddings
+from app.services.rag import chunk_text, generate_embeddings, index_product_embeddings
 
 
 DEMO_PRODUCTS = [
@@ -141,7 +141,11 @@ DEMO_DOCUMENTS = [
 
 def init_database() -> None:
     with engine.begin() as connection:
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        try:
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        except Exception:
+            # Render managed Postgres may not include pgvector; JSON embeddings still work.
+            pass
     Base.metadata.create_all(bind=engine)
 
 
@@ -160,8 +164,11 @@ def seed_demo_data(db: Session) -> None:
 
     for product_data in DEMO_PRODUCTS:
         db.add(Product(store_id=store.id, **product_data))
+    db.flush()
+    index_product_embeddings(db, store.id)
 
     customer = Customer(
+        store_id=store.id,
         shopify_customer_id="gid://shopify/Customer/9001",
         email="ava.customer@example.com",
         first_name="Ava",
@@ -227,4 +234,11 @@ def seed_demo_data(db: Session) -> None:
         )
     )
 
+    db.commit()
+
+
+def ensure_product_indexes(db: Session) -> None:
+    stores = db.query(Store).all()
+    for store in stores:
+        index_product_embeddings(db, store.id)
     db.commit()

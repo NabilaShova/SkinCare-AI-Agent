@@ -173,8 +173,12 @@ docker compose up postgres -d
 | Variable | Description |
 | --- | --- |
 | `OPENAI_API_KEY` | OpenAI API key for chat + embeddings |
-| `OPENAI_CHAT_MODEL` | Chat model, default `gpt-4o-mini` |
+| `OPENAI_CHAT_MODEL` | Chat model, default `gpt-4o-mini` (use `gpt-4o` in production) |
+| `OPENAI_INTENT_MODEL` | Intent classifier model |
 | `OPENAI_EMBEDDING_MODEL` | Embedding model, default `text-embedding-3-small` |
+| `RAG_TOP_K` / `RAG_MIN_SCORE` | Knowledge retrieval tuning |
+| `PRODUCT_TOP_K` / `CHAT_HISTORY_LIMIT` | Product ranking and memory window |
+| `CORS_ORIGINS` | Comma-separated allowed frontend origins |
 | `SHOPIFY_API_KEY` | Shopify app API key |
 | `SHOPIFY_API_SECRET` | Shopify app secret |
 | `SHOPIFY_APP_URL` | App URL for OAuth callbacks |
@@ -195,15 +199,114 @@ docker compose up postgres -d
 | `NEXT_PUBLIC_API_URL` | Backend base URL |
 | `NEXT_PUBLIC_SHOPIFY_APP_URL` | Shopify app URL |
 
+## Production Deployment Log
+
+All implementation steps and the manual production checklist live in:
+
+`DEPLOYMENT_LOG.txt`
+
+## Production Deployment Roadmap
+
+You are past local demo. Move to production in this order:
+
+### Phase 1 — Production infrastructure (now)
+
+1. Push the repo to GitHub/GitLab/Bitbucket.
+2. Set production secrets:
+   - `OPENAI_API_KEY`
+   - `SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET`
+   - `POSTGRES_PASSWORD`
+   - `CORS_ORIGINS` (your real frontend URL)
+   - `NEXT_PUBLIC_API_URL` (your public API URL)
+3. Deploy with one of:
+   - **Render Blueprint**: use the included `render.yaml`
+   - **Docker Compose production**: `docker compose -f docker-compose.prod.yml up --build -d`
+4. Use production Dockerfiles:
+   - `backend/Dockerfile.prod` (no hot reload, 2 workers)
+   - `frontend/Dockerfile.prod` (Next.js build + `npm start`)
+5. Point a custom domain and HTTPS to frontend + API.
+
+### Phase 2 — Real Shopify integration
+
+1. Create a Shopify Partner app and configure OAuth redirect URLs.
+2. Implement full OAuth token exchange in `backend/app/api/routes/auth.py`.
+3. Build product/order/customer sync in `backend/app/services/shopify_sync.py`.
+4. Schedule sync jobs (cron or background worker) so catalog data stays current.
+5. Replace demo seed data with live store records per tenant.
+
+### Phase 3 — SaaS hardening
+
+1. Multi-tenant isolation by `store_id` on every query.
+2. Admin authentication (Shopify session or JWT for dashboard).
+3. Rate limiting and abuse protection on `/api/chat/*`.
+4. File upload pipeline for PDFs/manuals with async embedding jobs.
+5. Observability: structured logs, error tracking (Sentry), AI latency metrics.
+6. Backups and migration strategy for PostgreSQL.
+
+### Phase 4 — Go-to-market
+
+1. Shopify App Store listing and compliance review.
+2. Billing (Shopify Billing API or Stripe).
+3. Merchant onboarding flow: connect store → sync catalog → upload policies → enable chat widget.
+4. Embed chat widget on storefront theme or checkout extension.
+
+### Recommended production `.env`
+
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_CHAT_MODEL=gpt-4o
+OPENAI_INTENT_MODEL=gpt-4o-mini
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+SHOPIFY_API_KEY=...
+SHOPIFY_API_SECRET=...
+SHOPIFY_APP_URL=https://app.yourdomain.com
+NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+CORS_ORIGINS=https://app.yourdomain.com
+POSTGRES_PASSWORD=strong-password
+ENVIRONMENT=production
+```
+
+### Deploy on Render
+
+1. Connect your Git repo in Render.
+2. Choose **New Blueprint** and select `render.yaml`.
+3. Fill secret env vars when prompted.
+4. Ensure `DATABASE_URL` uses the `postgresql+psycopg://` prefix if needed.
+5. Set `NEXT_PUBLIC_API_URL` to the deployed API service URL.
+
+## Chat Accuracy Improvements
+
+Recent upgrades in this repo:
+
+- **LLM intent classification** with regex fallback
+- **Intent-specific prompts** and temperature tuning per agent type
+- **Profile-aware retrieval** (skin type, concerns, budget remembered across turns)
+- **Hybrid product search** (semantic embeddings + keyword + profile weighting)
+- **Product catalog embeddings** indexed at startup
+- **Conversation-aware retrieval queries** using recent user messages
+- **Grounding rules** so the model only uses provided catalog/policy/order context
+- **Fixed order lookup** so the bot no longer guesses order `#3452` without a number
+
+To maximize accuracy in production:
+
+1. Set `OPENAI_API_KEY` (required for best results).
+2. Use `OPENAI_CHAT_MODEL=gpt-4o` for final responses.
+3. Keep `OPENAI_EMBEDDING_MODEL=text-embedding-3-small` for RAG.
+4. Upload real store policies and ingredient guides into the knowledge base.
+5. Sync live Shopify products so recommendations match inventory.
+6. Restart backend after deploy so `ensure_product_indexes()` rebuilds product embeddings.
+
 ## Current Status
 
 Implemented now:
 
 - Dockerized local development
+- Production Dockerfiles and `docker-compose.prod.yml`
+- Render Blueprint (`render.yaml`)
 - Customer chat frontend
 - Database schema, seed data, and pgvector extension
-- LangGraph-based agent routing
-- RAG retrieval over seeded knowledge documents
+- LangGraph-based agent routing with improved accuracy
+- RAG retrieval over seeded knowledge documents and product embeddings
 - Product recommendation and order support using demo data
 - Admin conversation viewer wired to the database
 
@@ -238,6 +341,10 @@ docker compose up --build
 ```
 
 This recreates PostgreSQL and reseeds demo data.
+
+### Re-index product embeddings after upgrade
+
+Restart the backend container. On startup it runs `ensure_product_indexes()` for all stores.
 
 ## License
 
