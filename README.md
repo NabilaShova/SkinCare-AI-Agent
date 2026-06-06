@@ -50,7 +50,7 @@ This app supports multiple stores in one database. Each connected Shopify shop g
 | Store ID | Domain | Products | Notes |
 | --- | --- | --- | --- |
 | `1` | `demo-glow-beauty.myshopify.com` | 8 demo products | Auto-seeded on first deploy (Ceramide Barrier Repair Cream, Gentle Foaming Cleanser, etc.) — **not** from your Shopify admin |
-| `3` | `glow-beauty-dev-dmf5uuka.myshopify.com` | 15 live products | **Your real connected Shopify store** — use this ID in the dashboard |
+| `3` | `glow-beauty-dev-dmf5uuka.myshopify.com` | **120 live products** | **Your real connected Shopify store** — use this ID in the dashboard |
 
 ### Which Store ID to use
 
@@ -63,18 +63,22 @@ Use **Store ID `3`** for:
 
 To confirm your Store ID: open **Settings** → **Connected stores** and note the `id` next to your shop domain.
 
-### Adding products
+### Catalog (120 products)
 
-Products are added in **Shopify Admin**, not in this app.
+Store ID `3` is synced with **120 skincare products** (cleansers, serums, moisturizers, sunscreens, masks, exfoliants, eye care, body care, routine sets, and more). After importing or editing products in Shopify, run **Settings → Sync now** so chat and the dashboard stay up to date.
 
-**Option A — Bulk import (120 products, BDT pricing)**
+### Adding or updating products
 
-1. Set store currency to **BDT**: Shopify Admin → **Settings** → **Store details** → **Store currency** → Bangladeshi Taka
+Products are managed in **Shopify Admin**, not in this app.
+
+**Option A — Bulk import (`glow-beauty-products-import.csv`, 120 products)**
+
+1. Set store currency in Shopify Admin → **Settings** → **Store details** (BDT if using the provided CSV as-is, or USD and adjust prices before import)
 2. **Products** → **Import** → upload `knowledge-base/glow-beauty-products-import.csv`
 3. Dashboard → **Settings** → Store ID `3` → **Sync now**
-4. Dashboard → **Products** → Store ID `3` to verify
+4. Dashboard → **Products** → Store ID `3` — you should see **120 products**
 
-Prices in the CSV are in **BDT** (converted at 110 BDT/USD, rounded for retail). Regenerate with:
+The CSV includes 120 trending-inspired items with skin-type and concern tags for better AI matching. Regenerate with:
 
 ```bash
 py -3 scripts/generate_product_csv.py
@@ -154,7 +158,7 @@ Use the chat UI to test common flows:
 - `I want a simple morning and night routine.`
 - `I have a severe rash and need a diagnosis.`
 
-Upload the files in `knowledge-base/` via **Dashboard → Knowledge** (Store ID `3`) for better policy and ingredient answers.
+Upload the files in `knowledge-base/` via **Dashboard → Knowledge** (Store ID `3`) for policy, ingredient, and skincare consultation answers. See `knowledge-base/README.txt` for the recommended upload order (includes skin-types, concerns, routine formulas, and compatibility guides).
 
 ## AI Architecture
 
@@ -289,12 +293,14 @@ DEMO_STORE_ID=3
 SEED_DEMO_DATA=false
 ```
 
-### Frontend (`frontend/.env.local`)
+### Frontend (`frontend/.env.local` or Render → skincare-frontend)
 
 | Variable | Description |
 | --- | --- |
 | `NEXT_PUBLIC_API_URL` | Backend base URL |
 | `NEXT_PUBLIC_SHOPIFY_APP_URL` | Shopify app URL |
+| `NEXT_PUBLIC_DEMO_STORE_ID` | Store ID for dashboard and chat branding (use `3` in production) |
+| `NEXT_PUBLIC_STORE_NAME` | Fallback store name in sidebar if API lookup fails |
 
 ## Deploy on Render
 
@@ -341,11 +347,15 @@ To maximize accuracy in production:
 - Admin API key auth and rate limiting
 - Policy FAQ routing fix (distinct shipping vs return answers)
 - Production URLs live on Render
-- Live Shopify dev store connected (15 products, Store ID `3`)
+- Live Shopify dev store connected (**120 products**, Store ID `3`)
+- Evidence-based skincare knowledge guides (skin types, concerns, routines, actives, compatibility)
+- Concern-aware product recommendations and ingredient compatibility follow-ups
+- Dashboard sidebar fixes (active nav, store name, Analytics links)
+- Customer-facing chat copy uses **our store** / **we carry** (not “your catalog”)
 
 ### Optional next steps
 
-- Upload full knowledge-base pack to Store ID `3`
+- Upload full knowledge-base pack to Store ID `3` (if not already done)
 - Shopify Protected Customer Data approval for full customer/order sync
 - Scheduled sync (`scripts/production_sync.ps1` / `.sh`)
 - Custom domain and paid Render tier (faster cold starts)
@@ -360,7 +370,7 @@ You are viewing **Store ID `1`** (demo catalog). Switch to **Store ID `3`** on t
 
 ### Chat recommends wrong or demo products
 
-Set `DEMO_STORE_ID=3` on the Render API service and redeploy. Run **Sync now** for Store ID `3`.
+Set `DEMO_STORE_ID=3` on the Render API service and `NEXT_PUBLIC_DEMO_STORE_ID=3` on the frontend, then redeploy both. Run **Sync now** for Store ID `3` and confirm **120 products** on Dashboard → Products.
 
 ### Chat returns generic or garbled policy answers
 

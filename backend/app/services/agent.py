@@ -98,6 +98,28 @@ PROFILE_CONCERNS = [
 
 SKIN_TYPES = ["oily", "dry", "combination", "sensitive", "normal"]
 
+CUSTOMER_REPLY_REPLACEMENTS: tuple[tuple[str, str], ...] = (
+    (r"\bfrom your catalog\b", "from our store"),
+    (r"\bin your catalog\b", "in our store"),
+    (r"\byour synced catalog\b", "our store"),
+    (r"\byour store catalog\b", "our store"),
+    (r"\bproducts from your store\b", "products we carry"),
+    (r"\bin your store include\b", "we carry"),
+    (r"\bin your store\b", "in our store"),
+    (r"\byour catalog\b", "our store"),
+    (r"\bcatalog options\b", "options from our store"),
+    (r"\bthe current catalog\b", "our store"),
+    (r"\bcurrent store catalog\b", "our store"),
+)
+
+
+def _polish_customer_reply(text: str) -> str:
+    polished = text
+    for pattern, replacement in CUSTOMER_REPLY_REPLACEMENTS:
+        polished = re.sub(pattern, replacement, polished, flags=re.IGNORECASE)
+    return polished
+
+
 AFFIRMATIVE_REPLIES = {
     "yes",
     "yeah",
@@ -157,7 +179,9 @@ def _last_assistant_offered_products(history: list[dict[str, str]]) -> bool:
                 for phrase in (
                     "suggest suitable products",
                     "suitable products if you'd like",
+                    "products from our store",
                     "products from your catalog",
+                    "from our store if you'd like",
                     "recommend products",
                 )
             )
@@ -398,7 +422,8 @@ def _intent_instructions(intent: str) -> str:
             "If they asked for a product type (e.g. sunscreen), recommend only that type unless they broaden the ask. "
             "Ask one focused follow-up for skin type only when it would materially change the recommendation. "
             "Recommend 1-3 matching products with short reasons. Do not repeat full product descriptions verbatim. "
-            "If the customer agreed to a routine, build a concise morning and/or night routine using only catalog products."
+            "If the customer agreed to a routine, build a concise morning and/or night routine using only products we carry. "
+            "Speak as the store's advisor — say 'our store' or 'we carry', never 'your catalog' (the customer does not own inventory)."
         ),
         "ingredient_question": (
             "Answer ingredient compatibility and usage questions directly in plain language. "
@@ -442,6 +467,7 @@ def _build_system_prompt(intent: str, context: dict[str, Any]) -> str:
         "- Summarize policies in plain language with short bullet points when helpful.\n"
         "- Use conversation history for short replies like 'yes' or skin-type-only answers.\n"
         "- Never recommend cleansers or hand creams when the customer asked for sunscreen.\n"
+        "- Speak to shoppers as the store's advisor. Say 'our store' or 'we carry' — never 'your catalog' or 'your store catalog'.\n"
         f"Active intent: {intent}\n"
         f"Intent instructions: {_intent_instructions(intent)}\n"
         f"Customer profile: {json.dumps(context.get('profile', {}))}\n"
@@ -588,7 +614,7 @@ def _ingredient_fallback_answer(message: str, knowledge_hits: list[dict[str, Any
 
     pair_answer = _ingredient_pair_answer(message)
     if pair_answer:
-        return f"{pair_answer}\n\nI can also suggest suitable products from your catalog if you'd like."
+        return f"{pair_answer}\n\nI can also suggest suitable products from our store if you'd like."
 
     ingredients = _extract_mentioned_ingredients(message)
     query_terms = set(re.findall(r"[a-z0-9]{3,}", message.lower()))
@@ -607,7 +633,7 @@ def _ingredient_fallback_answer(message: str, knowledge_hits: list[dict[str, Any
         names = " and ".join(ingredients)
         return (
             f"I can help with {names} layering. Introduce one active at a time, moisturize after treatments, "
-            f"and use SPF daily. Tell me your skin type if you want product picks from our catalog."
+            f"and use SPF daily. Tell me your skin type if you want product picks from our store."
         )
 
     body = "\n".join(f"- {point}" for point in points[:3])
@@ -623,7 +649,7 @@ def _sanitize_product_summary(product: Product) -> str:
     ingredients = (product.ingredients or "").strip()
     if ingredients and ingredients not in description:
         return f"{description} Ingredients: {ingredients}."
-    return description or "A matching option from your catalog."
+    return description or "A matching option we carry."
 
 
 def _wants_routine_build(message: str, history: list[dict[str, str]], last_intent: str | None) -> bool:
@@ -650,7 +676,7 @@ def _pick_routine_products(products: list[Product], profile: dict[str, Any]) -> 
 def _routine_fallback_answer(products: list[Product], profile: dict[str, Any]) -> str:
     slots = _pick_routine_products(products, profile)
     skin = profile.get("skin_type", "your skin type")
-    lines = [f"Here is a simple routine for {skin} skin using products from your store:"]
+    lines = [f"Here is a simple routine for {skin} skin using products we carry:"]
     morning = []
     if slots["cleanser"]:
         morning.append(f"1. Cleanser — {slots['cleanser'].title}")
@@ -674,7 +700,7 @@ def _routine_fallback_answer(products: list[Product], profile: dict[str, Any]) -
         lines.append("Night:")
         lines.extend(night)
     if len(lines) == 1:
-        return "I can build a routine once I have a cleanser, serum, moisturizer, and sunscreen in your synced catalog."
+        return "I can build a routine once we have a cleanser, serum, moisturizer, and sunscreen available in our store."
     return "\n".join(lines)
 
 
@@ -715,20 +741,20 @@ def _ingredient_product_fallback_answer(
 
     if not picks:
         return (
-            "I couldn't find a strong match in the current catalog. Tell me your skin type and I can suggest "
+            "I couldn't find a strong match in our store right now. Tell me your skin type and I can suggest "
             "the closest alternatives."
         )
 
     if len(ingredients) >= 2:
         label = f"{' and '.join(ingredients[:2]).title()}"
         opener = (
-            f"Here are catalog options that support a {label} routine "
+            f"Here are options from our store that support a {label} routine "
             f"(alternate nights when starting — not same night):"
         )
     elif ingredients:
-        opener = f"Here are products with {ingredients[0]} from your catalog:"
+        opener = f"Here are products with {ingredients[0]} that we carry:"
     else:
-        opener = "Here are relevant products from your catalog:"
+        opener = "Here are relevant products from our store:"
 
     lines = [opener]
     for index, product in enumerate(picks, start=1):
@@ -771,13 +797,13 @@ def _product_fallback_answer(
         pass
     elif not skin_type and not concerns and len(state["user_message"].split()) <= 4:
         names = ", ".join(item.title for item in scoped[:3])
-        return f"I can help with that. Relevant options in your store include: {names}. What is your skin type and main concern?"
+        return f"I can help with that. We carry options like: {names}. What is your skin type and main concern?"
 
     if concerns and not requested_types:
         picks = pick_products_for_concerns(scoped, concerns, limit=3)
         primary = concerns[0]
         label = concern_label(primary)
-        lines = [f"For {label}, I'd start with these from your catalog:"]
+        lines = [f"For {label}, I'd start with these from our store:"]
         for index, product in enumerate(picks, start=1):
             reason = _concern_product_reason(product, primary)
             lines.append(f"{index}. {product.title} ({product.price}) — {reason}.")
@@ -887,11 +913,11 @@ def _llm_response(
         result = llm.invoke(messages)
         content = getattr(result, "content", "")
         if isinstance(content, str) and content.strip():
-            return content.strip()
+            return _polish_customer_reply(content.strip())
     except Exception:
         pass
 
-    return _fallback_response(state, history, last_intent)
+    return _polish_customer_reply(_fallback_response(state, history, last_intent))
 
 
 def _extract_profile(message: str, existing: dict[str, Any]) -> dict[str, Any]:
@@ -1046,7 +1072,7 @@ def _node_respond(
     history: list[dict[str, str]],
     last_intent: str | None = None,
 ) -> AgentState:
-    state["response"] = _llm_response(state, history, last_intent=last_intent)
+    state["response"] = _polish_customer_reply(_llm_response(state, history, last_intent=last_intent))
 
     conversation = db.query(Conversation).filter(Conversation.id == state["conversation_id"]).first()
     if conversation:
