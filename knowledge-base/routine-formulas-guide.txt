@@ -1,0 +1,82 @@
+Glow Beauty Co. — Routine Formulas by Skin Type and Concern
+
+Purpose
+Ready-to-use morning and night routine frameworks. Match catalog products to each step. Always personalize based on customer skin type, concern, and tolerance.
+
+Standard Layering Order
+1. Cleanser (water-based)
+2. Toner or essence (optional)
+3. Water-based serums (hyaluronic acid, niacinamide)
+4. Treatment serums (vitamin C morning; BHA, retinol, or azelaic night)
+5. Eye cream (optional)
+6. Moisturizer
+7. Sunscreen (morning only — last step)
+
+Oily + Acne-Prone — Prevention Routine
+Morning: gel cleanser → niacinamide serum → oil-free gel moisturizer → lightweight SPF 30+ (non-comedogenic).
+Night: salicylic cleanser or gentle gel cleanser → BHA exfoliant serum (2-3 nights/week) OR niacinamide (other nights) → oil-free moisturizer.
+Weekly add-on: clay mask on T-zone once; hydrocolloid patches on individual blemishes.
+
+Dry + Sensitive — Barrier Repair Routine
+Morning: cream or milk cleanser → hyaluronic serum on damp skin → ceramide moisturizer → mineral SPF.
+Night: gentle cream cleanser → azelaic acid or niacinamide (start 2-3 nights/week) → rich ceramide cream.
+Avoid: foaming sulfates, fragrance, same-night retinol and strong acids when beginning.
+
+Combination — Balance Routine
+Morning: gentle foaming cleanser → lightweight niacinamide serum → gel-cream moisturizer → SPF.
+Night: cleanser → BHA on T-zone only (2-3 nights/week) → moisturizer (richer on cheeks if dry).
+Optional: different moisturizers by zone.
+
+Normal — Maintenance and Prevention
+Morning: gentle cleanser → vitamin C serum → daily moisturizer → SPF 30+.
+Night: cleanser → retinol 2-3 nights/week (other nights: hydrating serum) → moisturizer.
+
+Aging Concerns (Fine Lines) — Evidence-Based Routine
+Morning: gentle cleanser → vitamin C antioxidant serum → peptide or hydrating serum → moisturizer → SPF (mandatory with retinol use).
+Night: cleanser → retinol serum or cream (start 2 nights/week) → ceramide moisturizer.
+Eye area: peptide or low-strength retinol eye product if tolerated, applied before moisturizer.
+
+Hyperpigmentation / Dark Spots Routine
+Morning: cleanser → vitamin C serum → niacinamide (if separate product) → moisturizer → SPF 50 preferred.
+Night: cleanser → azelaic acid OR alpha arbutin serum (alternate with retinol nights) → moisturizer.
+Non-negotiable: daily sunscreen or spots darken faster.
+
+Dehydrated Oily Skin Routine
+Morning: gentle cleanser → hyaluronic acid on damp skin → lightweight gel moisturizer → SPF.
+Night: cleanser → niacinamide → hyaluronic serum → gel moisturizer.
+Key principle: dehydration worsens oiliness; do not skip moisturizer.
+
+Sensitive / Redness-Prone Routine
+Morning: fragrance-free gentle cleanser → centella or panthenol serum → barrier moisturizer → mineral sunscreen.
+Night: gentle cleanser → azelaic acid 10% (often well tolerated) OR niacinamide → barrier cream.
+Introduce one product every 2 weeks.
+
+Teen Acne (Mild) — Simple Routine
+Morning: gentle cleanser → oil-free moisturizer → SPF.
+Night: cleanser → BHA treatment (2-3 nights/week) → moisturizer.
+Avoid overloading with too many actives. Dermatologist for moderate-severe acne.
+
+Minimal Routine (3 Steps — Beginner)
+Morning: cleanser → moisturizer → sunscreen.
+Night: cleanser → single treatment serum → moisturizer.
+Best for: routine fatigue, sensitive skin reset, or new users. Add actives one at a time after 2-4 weeks.
+
+Double Cleansing (When to Use)
+Evening only, when wearing waterproof sunscreen, makeup, or heavy SPF.
+Step 1: cleansing oil or balm (fragrance-free for sensitive).
+Step 2: water-based gentle cleanser.
+Not required for everyone — oily acne-prone may prefer single gentle cleanse if no heavy makeup.
+
+How to Introduce Actives Safely
+Week 1-2: cleanser, moisturizer, SPF only.
+Week 3+: add niacinamide or hyaluronic acid daily.
+Week 5+: add BHA or retinol 2 nights per week.
+Week 7+: increase frequency if no irritation (redness, peeling, stinging).
+If irritation occurs: pause actives 3-5 days, use barrier moisturizer only, then restart slower.
+
+Product Recommendation Rules for AI
+- Map each step to a real catalog product.
+- Explain why each product fits the customer's stated skin type and concern.
+- Offer a simpler 3-step version if customer seems overwhelmed.
+- Always mention SPF for morning routines.
+- Ask skin type if missing before finalizing moisturizer and treatment choices.

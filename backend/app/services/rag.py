@@ -424,15 +424,52 @@ def filter_policy_hits(hits: list[dict[str, Any]], topic: str) -> list[dict[str,
     return filtered or hits
 
 INGREDIENT_SOURCE_HINTS: dict[str, list[str]] = {
-    "niacinamide": ["ingredient"],
-    "vitamin c": ["ingredient"],
-    "retinol": ["ingredient"],
-    "salicylic": ["ingredient"],
-    "hyaluronic": ["ingredient"],
-    "ceramide": ["ingredient"],
-    "ingredient": ["ingredient"],
-    "layer": ["ingredient", "product-usage"],
-    "routine": ["product-usage", "skin-consultation"],
+    "niacinamide": ["ingredient", "active-ingredients", "compatibility"],
+    "vitamin c": ["ingredient", "active-ingredients", "compatibility"],
+    "retinol": ["ingredient", "active-ingredients", "compatibility"],
+    "salicylic": ["ingredient", "active-ingredients", "skin-concerns"],
+    "hyaluronic": ["ingredient", "active-ingredients", "skin-types"],
+    "ceramide": ["ingredient", "active-ingredients", "skin-types"],
+    "azelaic": ["active-ingredients", "skin-concerns"],
+    "benzoyl": ["active-ingredients", "skin-concerns"],
+    "glycolic": ["active-ingredients"],
+    "lactic": ["active-ingredients"],
+    "peptide": ["active-ingredients", "skin-concerns"],
+    "ingredient": ["ingredient", "active-ingredients", "compatibility"],
+    "layer": ["ingredient", "product-usage", "compatibility"],
+    "routine": ["product-usage", "skin-consultation", "routine-formulas"],
+    "compatible": ["compatibility", "ingredient"],
+    "combine": ["compatibility", "ingredient"],
+    "mix": ["compatibility", "ingredient"],
+}
+
+SKIN_ADVISORY_SOURCE_HINTS: dict[str, list[str]] = {
+    "oily": ["skin-types", "routine-formulas"],
+    "dry": ["skin-types", "routine-formulas"],
+    "combination": ["skin-types", "routine-formulas"],
+    "sensitive": ["skin-types", "skin-concerns", "routine-formulas"],
+    "normal": ["skin-types", "routine-formulas"],
+    "acne": ["skin-concerns", "active-ingredients", "routine-formulas"],
+    "blemish": ["skin-concerns", "active-ingredients"],
+    "breakout": ["skin-concerns", "active-ingredients", "routine-formulas"],
+    "pimple": ["skin-concerns", "active-ingredients"],
+    "wrinkle": ["skin-concerns", "active-ingredients", "routine-formulas"],
+    "fine line": ["skin-concerns", "active-ingredients"],
+    "aging": ["skin-concerns", "active-ingredients", "routine-formulas"],
+    "dark spot": ["skin-concerns", "active-ingredients"],
+    "hyperpigmentation": ["skin-concerns", "active-ingredients"],
+    "melasma": ["skin-concerns", "active-ingredients"],
+    "redness": ["skin-concerns", "skin-types"],
+    "rosacea": ["skin-concerns", "skin-types"],
+    "dehydrat": ["skin-concerns", "skin-types"],
+    "flaky": ["skin-types", "skin-concerns"],
+    "pore": ["skin-concerns", "skin-types", "active-ingredients"],
+    "dull": ["skin-concerns", "routine-formulas"],
+    "texture": ["skin-concerns", "active-ingredients"],
+    "recommend": ["skin-concerns", "routine-formulas", "skin-types"],
+    "suggest": ["skin-concerns", "routine-formulas", "skin-types"],
+    "prevent": ["skin-concerns", "active-ingredients", "routine-formulas"],
+    "treatment": ["skin-concerns", "active-ingredients"],
 }
 
 
@@ -445,7 +482,14 @@ def _source_boost(
     lowered_query = query.lower()
     lowered_source = source.lower()
     boost = 0.0
-    hint_map = POLICY_SOURCE_HINTS if intent == "policy_faq" else INGREDIENT_SOURCE_HINTS if intent == "ingredient_question" else {}
+    if intent == "policy_faq":
+        hint_map = POLICY_SOURCE_HINTS
+    elif intent == "ingredient_question":
+        hint_map = INGREDIENT_SOURCE_HINTS
+    elif intent in {"product_recommendation", "general"}:
+        hint_map = {**INGREDIENT_SOURCE_HINTS, **SKIN_ADVISORY_SOURCE_HINTS}
+    else:
+        hint_map = {}
 
     if intent == "policy_faq" and policy_topic:
         preferred = POLICY_TOPIC_SOURCES.get(policy_topic, [])

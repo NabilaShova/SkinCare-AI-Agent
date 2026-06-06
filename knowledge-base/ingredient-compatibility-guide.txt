@@ -1,0 +1,74 @@
+Glow Beauty Co. — Ingredient Compatibility and Layering Guide
+
+Purpose
+Help the AI answer "can I use X with Y?" and build safe, effective routines. Based on common dermatology and cosmetic chemistry practice.
+
+General Layering Rules
+- Apply thinnest to thickest texture.
+- Water-based before oil-based.
+- Wait 30-60 seconds between layers if using low-pH actives (optional, helps sensitive users).
+- Sunscreen is always the last morning step.
+- When in doubt, separate irritating actives to different times of day.
+
+Safe and Common Combinations
+Niacinamide + Hyaluronic Acid: yes, same routine; hydrate and balance.
+Niacinamide + Vitamin C: yes for most people; both morning or vitamin C AM / niacinamide PM for very sensitive skin.
+Niacinamide + Retinol: yes; niacinamide may reduce irritation; can layer if tolerated or use niacinamide AM / retinol PM.
+Hyaluronic Acid + Ceramide Moisturizer: yes; apply HA on damp skin, seal with ceramides.
+Vitamin C + Sunscreen: yes; vitamin C boosts antioxidant defense, SPF is essential.
+Azelaic Acid + Niacinamide: yes; good for acne, redness, and marks.
+Peptides + Most Actives: generally compatible; peptides in moisturizer or serum.
+
+Combinations Requiring Caution (Beginners)
+Retinol + Salicylic Acid (BHA): avoid same night when starting; alternate nights or BHA AM / retinol PM only if experienced and tolerant.
+Retinol + Glycolic/Lactic Acid (AHA): do not use same night initially; alternate evenings.
+Retinol + Benzoyl Peroxide: can deactivate retinol and increase irritation — alternate nights or BP morning / retinol night with caution.
+Vitamin C (L-Ascorbic Acid) + Direct Acids (AHA/BHA): may irritate sensitive skin if layered at same time; separate AM/PM.
+Multiple Strong Actives Same Night: avoid — e.g., retinol + BHA + benzoyl peroxide together when beginning.
+
+Often Used on Alternate Nights
+Night A: retinol + moisturizer.
+Night B: BHA or AHA + moisturizer.
+Night C: recovery only — gentle cleanser + barrier moisturizer (recommended weekly rest).
+
+Same Routine — Experienced Users Only
+Retinol after BHA: only if skin is acclimated over months; not for beginners.
+Niacinamide before or after vitamin C: order by texture; both stable in modern formulations.
+
+Ingredients That Increase Sun Sensitivity
+Retinol, AHAs, BHAs, benzoyl peroxide — require daily broad-spectrum SPF 30+.
+Failure to use SPF causes worsening hyperpigmentation and aging.
+
+pH Considerations (Simplified)
+Low-pH vitamin C and AHAs: use before neutral moisturizers.
+Niacinamide tolerates a wide pH range in contemporary formulas.
+Cleanser always comes first.
+
+Pregnancy and Nursing — General Avoid List (Confirm with Doctor)
+Retinoids (retinol, adapalene, tretinoin OTC discussion — avoid unless physician says otherwise).
+High-strength salicylic acid peels and large-area high % BHA.
+Hydroquinone without medical supervision.
+
+Patch Testing Protocol
+Apply new product to inner arm or behind ear once daily for 3-5 days.
+If no reaction, apply to small face area (jawline) for 3 days.
+Then full face application.
+
+Signs to Stop and Reset Routine
+Persistent burning, swelling, hives, oozing, or worsening breakouts unlike normal mild purging.
+Action: stop all actives, use gentle cleanser + barrier moisturizer + SPF for 5-7 days.
+
+Purging vs Breakout (Retinol / BHA)
+Purging: small bumps in usual acne areas, improves within 4-6 weeks.
+Reaction: widespread itching, rash, or breakouts in new areas — discontinue and seek advice.
+
+Recommended Starter Stacks by Goal
+Acne prevention stack: cleanser + niacinamide (daily) + BHA (2-3 nights/week) + moisturizer + SPF.
+Anti-aging stack: vitamin C (AM) + retinol (PM 2-3 nights/week) + moisturizer + SPF.
+Dark spot stack: vitamin C (AM) + azelaic acid or niacinamide (PM) + SPF mandatory.
+Dry barrier stack: hyaluronic acid + ceramide moisturizer AM/PM; add retinol only after barrier stable.
+
+AI Response Guidelines
+When customer asks compatibility: give clear yes/no with timing guidance (same routine vs alternate nights).
+When uncertain about sensitivity: recommend separating actives AM/PM.
+Never claim medical certainty — suggest dermatologist for prescription interactions or diagnosed conditions.

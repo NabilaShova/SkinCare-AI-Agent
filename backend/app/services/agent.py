@@ -257,7 +257,8 @@ def _format_products(products: list[Product]) -> str:
 def _intent_instructions(intent: str) -> str:
     instructions = {
         "product_recommendation": (
-            "Act as a beauty advisor. Match the customer's current concern or goal first — do not assume oily skin for acne. "
+            "Act as a beauty advisor. Use skin-types, skin-concerns, routine-formulas, and active-ingredients knowledge when advising. "
+            "Match the customer's current concern or goal first — do not assume oily skin for acne. "
             "For acne or breakout questions, prioritize cleansers, BHA/salicylic treatments, and serums before moisturizers. "
             "For dryness, prioritize rich moisturizers and barrier-repair ingredients. For dark spots, prioritize vitamin C serums and SPF. "
             "If they asked for a product type (e.g. sunscreen), recommend only that type unless they broaden the ask. "

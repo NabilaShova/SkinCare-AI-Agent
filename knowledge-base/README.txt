@@ -13,10 +13,15 @@ HOW TO UPLOAD
 RECOMMENDED UPLOAD ORDER
 1. shipping-policy.txt
 2. return-refund-policy.txt
-3. ingredient-faq.txt
-4. store-faq.txt
-5. product-usage-guide.txt
-6. skin-consultation-guide.txt
+3. store-faq.txt
+4. skin-types-guide.txt
+5. skin-concerns-treatment-guide.txt
+6. routine-formulas-guide.txt
+7. active-ingredients-clinical-guide.txt
+8. ingredient-compatibility-guide.txt
+9. ingredient-faq.txt
+10. product-usage-guide.txt
+11. skin-consultation-guide.txt
 
 CUSTOMIZE BEFORE UPLOAD
 - Replace "Glow Beauty Co." with your real store name
@@ -29,6 +34,10 @@ TEST PROMPTS AFTER UPLOAD
 - "Can I use Niacinamide with Vitamin C?"
 - "How do I layer my skincare products?"
 - "I have oily acne-prone skin — help me build a routine."
+- "Can you suggest products for acne prevention?"
+- "What routine is best for dry sensitive skin?"
+- "Can I use retinol and salicylic acid together?"
+- "How do I treat dark spots and hyperpigmentation?"
 
 SHOPIFY PRODUCT IMPORT CSV
 - glow-beauty-products-import.csv (120 trending-inspired skincare products, BDT pricing)
@@ -62,7 +71,12 @@ FILES IN THIS FOLDER
 - product_template.csv
 - shipping-policy.txt
 - return-refund-policy.txt
-- ingredient-faq.txt
 - store-faq.txt
+- skin-types-guide.txt (oily, dry, combination, sensitive, normal)
+- skin-concerns-treatment-guide.txt (acne, aging, spots, redness, dehydration)
+- routine-formulas-guide.txt (morning/night routines by skin type and concern)
+- active-ingredients-clinical-guide.txt (BHA, retinol, vitamin C, niacinamide, etc.)
+- ingredient-compatibility-guide.txt (layering and combination rules)
+- ingredient-faq.txt
 - product-usage-guide.txt
 - skin-consultation-guide.txt
