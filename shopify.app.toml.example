@@ -7,7 +7,7 @@ application_url = "https://app.yourdomain.com"
 embedded = true
 
 [access_scopes]
-scopes = "read_products,read_orders,read_customers,read_content"
+scopes = "read_products,read_orders,read_content"
 
 [auth]
 redirect_urls = [

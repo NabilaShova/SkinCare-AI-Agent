@@ -39,7 +39,7 @@ services:
       - key: SHOPIFY_API_VERSION
         value: "2024-10"
       - key: SHOPIFY_SCOPES
-        value: read_products,read_orders,read_customers,read_content
+        value: read_products,read_orders,read_content
       - key: BACKEND_PUBLIC_URL
         sync: false
       - key: FRONTEND_PUBLIC_URL

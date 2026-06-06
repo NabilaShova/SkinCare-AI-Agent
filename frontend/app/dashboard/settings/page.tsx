@@ -67,8 +67,12 @@ export default function SettingsPage() {
     setStatus('Syncing Shopify catalog, orders, and customers...');
     try {
       const result = await fetcher(`/shopify/sync?store_id=${storeId}`, { method: 'POST' });
+      const warningText =
+        Array.isArray(result.warnings) && result.warnings.length > 0
+          ? ` Warnings: ${result.warnings.join(' ')}`
+          : '';
       setStatus(
-        `Sync complete: ${result.products_synced} products, ${result.orders_synced} orders, ${result.customers_synced} customers.`
+        `Sync ${result.status}: ${result.products_synced} products, ${result.orders_synced} orders, ${result.customers_synced} customers.${warningText}`
       );
       const data = await fetcher('/auth/status');
       setStores(data.stores ?? []);

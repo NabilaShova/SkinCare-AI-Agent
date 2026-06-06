@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime
 from typing import Any
 
+import httpx
 from sqlalchemy.orm import Session
 
 from app.db.models import Customer, Order, Product, Store
 from app.services.rag import index_product_embeddings
 from app.services.shopify_client import ShopifyClient
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_ingredients(description: str | None, tags: str | None) -> str | None:
@@ -82,7 +86,7 @@ def _upsert_customer(db: Session, store_id: int, item: dict[str, Any]) -> Custom
     return customer
 
 
-def _upsert_order(db: Session, store_id: int, item: dict[str, Any]) -> None:
+def _upsert_order(db: Session, store_id: int, item: dict[str, Any], *, sync_customers: bool) -> None:
     shopify_order_id = item.get("name") or f"#{item['id']}"
     order = (
         db.query(Order)
@@ -90,7 +94,7 @@ def _upsert_order(db: Session, store_id: int, item: dict[str, Any]) -> None:
         .first()
     )
     customer = None
-    if item.get("customer"):
+    if sync_customers and item.get("customer"):
         customer = _upsert_customer(db, store_id, item["customer"])
 
     fulfillments = item.get("fulfillments") or []
@@ -114,37 +118,70 @@ def _upsert_order(db: Session, store_id: int, item: dict[str, Any]) -> None:
         db.add(Order(store_id=store_id, shopify_order_id=shopify_order_id, **payload))
 
 
+def _sync_resource(label: str, fetcher) -> tuple[list[dict[str, Any]], list[str]]:
+    warnings: list[str] = []
+    try:
+        return fetcher(), warnings
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 403:
+            warnings.append(
+                f"{label}: access denied (403). Shopify may require Protected Customer Data approval "
+                f"or reinstalling the app with updated scopes."
+            )
+            return [], warnings
+        raise
+    except Exception as exc:
+        warnings.append(f"{label}: sync skipped ({exc})")
+        return [], warnings
+
+
 def sync_store_catalog(db: Session, store: Store) -> dict[str, Any]:
     client = ShopifyClient(store.shopify_domain, store.access_token)
+    warnings: list[str] = []
+
     shop_info = client.get_shop()
     store.name = shop_info.get("name") or store.name
 
-    products = client.get_products()
-    customers = client.get_customers()
-    orders = client.get_orders()
+    products, product_warnings = _sync_resource("products", client.get_products)
+    warnings.extend(product_warnings)
+
+    customers, customer_warnings = _sync_resource("customers", client.get_customers)
+    warnings.extend(customer_warnings)
+    customers_allowed = len(customer_warnings) == 0
+
+    orders, order_warnings = _sync_resource("orders", client.get_orders)
+    warnings.extend(order_warnings)
 
     for product in products:
         _upsert_product(db, store.id, product)
 
-    for customer in customers:
-        _upsert_customer(db, store.id, customer)
+    if customers_allowed:
+        for customer in customers:
+            _upsert_customer(db, store.id, customer)
 
     for order in orders:
-        _upsert_order(db, store.id, order)
+        _upsert_order(db, store.id, order, sync_customers=customers_allowed)
 
-    index_product_embeddings(db, store.id)
+    if products:
+        index_product_embeddings(db, store.id)
+
     store.last_synced_at = datetime.utcnow()
     db.add(store)
     db.commit()
+
+    status = "completed" if products else "partial"
+    if not products and warnings:
+        status = "failed"
 
     return {
         "store_id": store.id,
         "shopify_domain": store.shopify_domain,
         "products_synced": len(products),
-        "customers_synced": len(customers),
+        "customers_synced": len(customers) if customers_allowed else 0,
         "orders_synced": len(orders),
         "last_synced_at": store.last_synced_at.isoformat() if store.last_synced_at else None,
-        "status": "completed",
+        "status": status,
+        "warnings": warnings,
     }
 
 

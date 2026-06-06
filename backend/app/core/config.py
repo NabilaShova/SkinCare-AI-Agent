@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     SHOPIFY_API_SECRET: str = ""
     SHOPIFY_APP_URL: Optional[str] = "http://localhost:3000"
     SHOPIFY_API_VERSION: str = "2024-10"
-    SHOPIFY_SCOPES: str = "read_products,read_orders,read_customers,read_content"
+    SHOPIFY_SCOPES: str = "read_products,read_orders,read_content"
 
     ADMIN_API_KEY: str = "dev-admin-key-change-me"
     JWT_SECRET: str = "dev-jwt-secret-change-me"

@@ -32,7 +32,12 @@ def sync_shopify_data(
     enforce_rate_limit(request, namespace="admin", limit_per_minute=settings.RATE_LIMIT_ADMIN_PER_MINUTE)
     store = get_store_or_404(store_id, db)
     try:
-        return sync_store_catalog(db, store)
+        result = sync_store_catalog(db, store)
+        if result.get("status") == "failed":
+            raise HTTPException(status_code=502, detail=result)
+        return result
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Shopify sync failed: {exc}") from exc
 
