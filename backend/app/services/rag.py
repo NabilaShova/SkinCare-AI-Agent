@@ -411,6 +411,33 @@ def detect_policy_topic(query: str) -> str:
     return "general"
 
 
+INGREDIENT_PREFERRED_SOURCES = [
+    "ingredient-compatibility",
+    "active-ingredients",
+    "ingredient-faq",
+    "ingredient",
+    "product-usage",
+]
+
+
+def filter_ingredient_hits(hits: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
+    preferred = [
+        hit
+        for hit in hits
+        if any(token in str(hit.get("source", "")).lower() for token in INGREDIENT_PREFERRED_SOURCES)
+    ]
+    if not preferred:
+        return hits
+
+    query_terms = set(re.findall(r"[a-z0-9]+", query.lower()))
+    ranked = sorted(
+        preferred,
+        key=lambda hit: sum(1 for term in query_terms if term in str(hit.get("text", "")).lower()),
+        reverse=True,
+    )
+    return ranked + [hit for hit in hits if hit not in preferred]
+
+
 def filter_policy_hits(hits: list[dict[str, Any]], topic: str) -> list[dict[str, Any]]:
     preferred = POLICY_TOPIC_SOURCES.get(topic, [])
     if not preferred:

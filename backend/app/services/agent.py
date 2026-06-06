@@ -17,6 +17,7 @@ from app.services.rag import (
     detect_policy_topic,
     detect_requested_product_types,
     effective_profile_for_retrieval,
+    filter_ingredient_hits,
     filter_policy_hits,
     filter_products_for_query,
     format_knowledge_context,
@@ -147,6 +148,137 @@ def _last_assistant_offered_routine(history: list[dict[str, str]]) -> bool:
     return False
 
 
+def _last_assistant_offered_products(history: list[dict[str, str]]) -> bool:
+    for item in reversed(history):
+        if item["role"] == "assistant":
+            lowered = item["content"].lower()
+            return any(
+                phrase in lowered
+                for phrase in (
+                    "suggest suitable products",
+                    "suitable products if you'd like",
+                    "products from your catalog",
+                    "recommend products",
+                )
+            )
+    return False
+
+
+INGREDIENT_KEYWORDS: dict[str, list[str]] = {
+    "retinol": ["retinol", "retinoid", "retinal"],
+    "salicylic acid": ["salicylic", "bha"],
+    "niacinamide": ["niacinamide"],
+    "vitamin c": ["vitamin c", "ascorbic", "l-ascorbic"],
+    "benzoyl peroxide": ["benzoyl"],
+    "glycolic acid": ["glycolic"],
+    "lactic acid": ["lactic"],
+    "azelaic acid": ["azelaic"],
+    "hyaluronic acid": ["hyaluronic"],
+}
+
+INGREDIENT_PAIR_ANSWERS: dict[frozenset[str], str] = {
+    frozenset({"retinol", "salicylic acid"}): (
+        "Yes — retinol and salicylic acid (BHA) can be part of the same skincare plan, but avoid using both on the "
+        "same night when you're starting out. Alternate evenings (BHA one night, retinol the next), moisturize after "
+        "each, and wear SPF every morning. If your skin is sensitive, keep them on separate nights until tolerated."
+    ),
+    frozenset({"niacinamide", "vitamin c"}): (
+        "Yes — niacinamide and vitamin C can be used together in many routines. For sensitive skin, use vitamin C in "
+        "the morning and niacinamide at night. For tolerant skin, layer by texture (thinnest first)."
+    ),
+    frozenset({"retinol", "benzoyl peroxide"}): (
+        "Use caution — benzoyl peroxide and retinol can irritate skin when combined. Alternate nights when starting, "
+        "and never skip morning sunscreen."
+    ),
+    frozenset({"retinol", "glycolic acid"}): (
+        "Do not use retinol and glycolic acid (AHA) on the same night when beginning. Alternate evenings and moisturize "
+        "after each active."
+    ),
+    frozenset({"retinol", "lactic acid"}): (
+        "Do not use retinol and lactic acid (AHA) on the same night when beginning. Alternate evenings and moisturize "
+        "after each active."
+    ),
+}
+
+
+def _recent_substantive_user_message(history: list[dict[str, str]]) -> str:
+    for item in reversed(history):
+        if item["role"] != "user":
+            continue
+        content = item["content"].strip()
+        if _is_affirmative(content):
+            continue
+        if len(content.split()) <= 2:
+            continue
+        return content
+    return ""
+
+
+def _extract_mentioned_ingredients(text: str) -> list[str]:
+    lowered = text.lower()
+    found: list[str] = []
+    for name, terms in INGREDIENT_KEYWORDS.items():
+        if any(term in lowered for term in terms):
+            found.append(name)
+    return found
+
+
+def _is_ingredient_product_followup(
+    message: str,
+    history: list[dict[str, str]],
+    last_intent: str | None,
+) -> bool:
+    return _is_affirmative(message) and last_intent == "ingredient_question" and _last_assistant_offered_products(
+        history
+    )
+
+
+def _ingredient_terms(ingredients: list[str]) -> list[str]:
+    terms: list[str] = []
+    for ingredient in ingredients:
+        terms.extend(INGREDIENT_KEYWORDS.get(ingredient, [ingredient]))
+    return terms
+
+
+def _pick_products_for_ingredients(
+    products: list[Product],
+    ingredients: list[str],
+    limit: int = 3,
+) -> list[Product]:
+    if not products:
+        return []
+
+    ranked = sorted(
+        products,
+        key=lambda product: sum(
+            1 for term in _ingredient_terms(ingredients) if term in _product_haystack(product)
+        ),
+        reverse=True,
+    )
+    picks: list[Product] = []
+    seen_ids: set[int] = set()
+
+    for ingredient in ingredients:
+        terms = INGREDIENT_KEYWORDS.get(ingredient, [ingredient])
+        for product in ranked:
+            if product.id in seen_ids:
+                continue
+            if any(term in _product_haystack(product) for term in terms):
+                picks.append(product)
+                seen_ids.add(product.id)
+                break
+
+    for product in ranked:
+        if product.id in seen_ids:
+            continue
+        picks.append(product)
+        seen_ids.add(product.id)
+        if len(picks) >= limit:
+            break
+
+    return picks[:limit]
+
+
 def _classify_intent_rules(message: str) -> Intent:
     lowered = message.lower()
 
@@ -229,7 +361,9 @@ def _classify_intent(
     last_intent: str | None = None,
 ) -> Intent:
     if _is_affirmative(message) and (
-        last_intent == "product_recommendation" or _last_assistant_offered_routine(history)
+        last_intent == "product_recommendation"
+        or _last_assistant_offered_routine(history)
+        or _is_ingredient_product_followup(message, history, last_intent)
     ):
         return "product_recommendation"
 
@@ -267,8 +401,9 @@ def _intent_instructions(intent: str) -> str:
             "If the customer agreed to a routine, build a concise morning and/or night routine using only catalog products."
         ),
         "ingredient_question": (
-            "Answer ingredient compatibility and usage questions using the knowledge context first. "
-            "Be precise about timing, layering order, and sensitivity considerations. "
+            "Answer ingredient compatibility and usage questions directly in plain language. "
+            "State clearly whether ingredients can be combined, and if so whether to alternate nights or separate AM/PM. "
+            "Do not dump unrelated policy or pregnancy sections unless the customer asked about pregnancy. "
             "Do not invent ingredient interactions that are not supported by the provided context."
         ),
         "order_support": (
@@ -415,6 +550,35 @@ def _policy_fallback_answer(message: str, knowledge_hits: list[dict[str, Any]]) 
     return f"{template['lead']}\n{body}\n\nLet me know if you want help with a product or order next."
 
 
+def _extract_compatibility_lines(text: str, ingredients: list[str]) -> list[str]:
+    lines: list[str] = []
+    ingredient_terms = _ingredient_terms(ingredients)
+    for raw_line in text.split("\n"):
+        line = raw_line.strip().lstrip("-•").strip()
+        if len(line) < 24:
+            continue
+        lowered = line.lower()
+        if not any(term in lowered for term in ingredient_terms):
+            continue
+        if (
+            "+" in line
+            or "together" in lowered
+            or "combine" in lowered
+            or "alternate" in lowered
+            or "same night" in lowered
+            or "avoid" in lowered
+        ):
+            lines.append(line if line.endswith(".") else f"{line}.")
+    return lines
+
+
+def _ingredient_pair_answer(message: str) -> str | None:
+    ingredients = _extract_mentioned_ingredients(message)
+    if len(ingredients) < 2:
+        return None
+    return INGREDIENT_PAIR_ANSWERS.get(frozenset(ingredients[:2]))
+
+
 def _ingredient_fallback_answer(message: str, knowledge_hits: list[dict[str, Any]]) -> str:
     if not knowledge_hits:
         return (
@@ -422,9 +586,31 @@ def _ingredient_fallback_answer(message: str, knowledge_hits: list[dict[str, Any
             "Tell me which ingredients or products you are comparing."
         )
 
+    pair_answer = _ingredient_pair_answer(message)
+    if pair_answer:
+        return f"{pair_answer}\n\nI can also suggest suitable products from your catalog if you'd like."
+
+    ingredients = _extract_mentioned_ingredients(message)
     query_terms = set(re.findall(r"[a-z0-9]{3,}", message.lower()))
-    points = _extract_knowledge_points(knowledge_hits[0].get("text", ""), query_terms, limit=4)
-    body = "\n".join(f"- {point}" for point in points)
+    points: list[str] = []
+    for hit in knowledge_hits[:3]:
+        points.extend(_extract_compatibility_lines(hit.get("text", ""), ingredients))
+        if len(points) >= 3:
+            break
+    if not points:
+        for hit in knowledge_hits[:2]:
+            points.extend(_extract_knowledge_points(hit.get("text", ""), query_terms, limit=3))
+            if len(points) >= 3:
+                break
+
+    if not points and ingredients:
+        names = " and ".join(ingredients)
+        return (
+            f"I can help with {names} layering. Introduce one active at a time, moisturize after treatments, "
+            f"and use SPF daily. Tell me your skin type if you want product picks from our catalog."
+        )
+
+    body = "\n".join(f"- {point}" for point in points[:3])
     return f"Here is guidance based on our ingredient knowledge:\n{body}\n\nI can also suggest suitable products if you'd like."
 
 
@@ -518,6 +704,41 @@ def _product_haystack(product: Product) -> str:
     ).lower()
 
 
+def _ingredient_product_fallback_answer(
+    products: list[Product],
+    history: list[dict[str, str]],
+    context: dict[str, Any],
+) -> str:
+    prior = context.get("prior_user_message") or _recent_substantive_user_message(history)
+    ingredients = context.get("mentioned_ingredients") or _extract_mentioned_ingredients(prior)
+    picks = _pick_products_for_ingredients(products, ingredients, limit=3)
+
+    if not picks:
+        return (
+            "I couldn't find a strong match in the current catalog. Tell me your skin type and I can suggest "
+            "the closest alternatives."
+        )
+
+    if len(ingredients) >= 2:
+        label = f"{' and '.join(ingredients[:2]).title()}"
+        opener = (
+            f"Here are catalog options that support a {label} routine "
+            f"(alternate nights when starting — not same night):"
+        )
+    elif ingredients:
+        opener = f"Here are products with {ingredients[0]} from your catalog:"
+    else:
+        opener = "Here are relevant products from your catalog:"
+
+    lines = [opener]
+    for index, product in enumerate(picks, start=1):
+        lines.append(f"{index}. {product.title} ({product.price}) — {_sanitize_product_summary(product)}")
+    lines.append(
+        "Use one active treatment per night when starting, moisturize after, and apply SPF every morning."
+    )
+    return " ".join(lines)
+
+
 def _product_fallback_answer(
     state: AgentState,
     products: list[Product],
@@ -525,6 +746,12 @@ def _product_fallback_answer(
     history: list[dict[str, str]],
     last_intent: str | None,
 ) -> str:
+    context = state.get("context", {})
+    if context.get("ingredient_followup") or _is_ingredient_product_followup(
+        state["user_message"], history, last_intent
+    ):
+        return _ingredient_product_fallback_answer(products, history, context)
+
     if _wants_routine_build(state["user_message"], history, last_intent) and products:
         return _routine_fallback_answer(products, profile)
 
@@ -730,8 +957,23 @@ def _node_gather_context(
     profile: dict[str, Any],
     last_intent: str | None = None,
 ) -> AgentState:
+    ingredient_followup = _is_ingredient_product_followup(state["user_message"], history, last_intent)
+    prior_user_message = _recent_substantive_user_message(history) if ingredient_followup else ""
+    mentioned_ingredients = _extract_mentioned_ingredients(prior_user_message) if prior_user_message else []
+
     active_profile = effective_profile_for_retrieval(state["user_message"], profile)
+    if ingredient_followup:
+        active_profile = {
+            key: value
+            for key, value in active_profile.items()
+            if key not in {"concerns", "skin_type"}
+        }
+
     retrieval_query = build_retrieval_query(state["user_message"], profile=active_profile, history=history)
+    if ingredient_followup and prior_user_message:
+        ingredient_query = " ".join(_ingredient_terms(mentioned_ingredients))
+        retrieval_query = f"{prior_user_message}. {ingredient_query} serum treatment exfoliant products"
+
     product_limit = settings.PRODUCT_TOP_K
     if _wants_routine_build(state["user_message"], history, last_intent):
         retrieval_query = f"{retrieval_query}. morning night routine cleanser serum moisturizer sunscreen"
@@ -759,6 +1001,8 @@ def _node_gather_context(
     document_hits = [hit for hit in knowledge_hits if hit.get("type") != "product"]
     if policy_topic:
         document_hits = filter_policy_hits(document_hits, policy_topic)
+    elif state["intent"] == "ingredient_question":
+        document_hits = filter_ingredient_hits(document_hits, retrieval_query)
     knowledge_text = format_knowledge_context(document_hits)
 
     orders_text = ""
@@ -788,6 +1032,9 @@ def _node_gather_context(
         "policy_topic": policy_topic,
         "orders": orders_text,
         "profile": active_profile,
+        "ingredient_followup": ingredient_followup,
+        "mentioned_ingredients": mentioned_ingredients,
+        "prior_user_message": prior_user_message,
     }
     state["sources"] = [hit["source"] for hit in knowledge_hits]
     return state
