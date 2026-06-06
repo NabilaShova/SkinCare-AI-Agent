@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { SideNav } from '@/components/side-nav';
-import { fetcher, getDashboardStoreId } from '@/lib/api';
+import { fetcher, getDashboardStoreId, setDashboardStoreId } from '@/lib/api';
 
 interface ProductItem {
   id: number;
@@ -15,9 +15,13 @@ interface ProductItem {
 }
 
 export default function ProductsPage() {
-  const [storeId] = useState(() => getDashboardStoreId());
+  const [storeId, setStoreId] = useState(() => getDashboardStoreId());
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [status, setStatus] = useState('Loading products...');
+
+  useEffect(() => {
+    setDashboardStoreId(storeId);
+  }, [storeId]);
 
   useEffect(() => {
     async function loadProducts() {
