@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { SideNav } from '@/components/side-nav';
 import { fetcher } from '@/lib/api';
 
 interface MetricItem {
@@ -41,22 +42,7 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="grid min-h-screen grid-cols-[280px_minmax(0,_1fr)]">
-        <aside className="border-r border-slate-800 bg-slate-950 px-6 py-8">
-          <div className="space-y-10">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-pink-300">Skincare AI</p>
-              <h2 className="mt-4 text-2xl font-semibold">Beauty Support</h2>
-            </div>
-            <nav className="space-y-2 text-slate-300">
-              <p className="rounded-2xl bg-slate-900/80 px-4 py-3 text-sm">Overview</p>
-              <p className="rounded-2xl bg-slate-900/80 px-4 py-3 text-sm">Conversations</p>
-              <p className="rounded-2xl bg-slate-900/80 px-4 py-3 text-sm">Knowledge Base</p>
-              <p className="rounded-2xl bg-slate-900/80 px-4 py-3 text-sm">Products</p>
-              <p className="rounded-2xl bg-slate-900/80 px-4 py-3 text-sm bg-pink-500/10 text-pink-200">Analytics</p>
-              <p className="rounded-2xl bg-slate-900/80 px-4 py-3 text-sm">Settings</p>
-            </nav>
-          </div>
-        </aside>
+        <SideNav />
 
         <main className="px-8 py-10">
           <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">

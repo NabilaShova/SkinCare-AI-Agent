@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { SideNav } from '@/components/side-nav';
-import { apiUrl, fetcher, getAdminApiKey, setAdminApiKey } from '@/lib/api';
+import { apiUrl, fetcher, getAdminApiKey, getDashboardStoreId, setAdminApiKey, setDashboardStoreId } from '@/lib/api';
 
 interface StoreItem {
   id: number;
@@ -15,10 +15,14 @@ interface StoreItem {
 export default function SettingsPage() {
   const [shopDomain, setShopDomain] = useState('');
   const [adminKey, setAdminKey] = useState('');
-  const [storeId, setStoreId] = useState(1);
+  const [storeId, setStoreId] = useState(() => getDashboardStoreId());
   const [stores, setStores] = useState<StoreItem[]>([]);
   const [status, setStatus] = useState('');
   const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    setDashboardStoreId(storeId);
+  }, [storeId]);
 
   useEffect(() => {
     setAdminKey(getAdminApiKey());

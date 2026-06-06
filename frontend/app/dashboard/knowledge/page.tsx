@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { SideNav } from '@/components/side-nav';
-import { fetcher, uploadKnowledge } from '@/lib/api';
+import { fetcher, getDashboardStoreId, uploadKnowledge } from '@/lib/api';
 
 interface DocumentItem {
   id: number;
@@ -13,7 +13,7 @@ interface DocumentItem {
 }
 
 export default function KnowledgePage() {
-  const [storeId, setStoreId] = useState(1);
+  const [storeId] = useState(() => getDashboardStoreId());
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [status, setStatus] = useState('');
   const [uploading, setUploading] = useState(false);

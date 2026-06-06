@@ -1,5 +1,24 @@
 export const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
+const DEFAULT_DASHBOARD_STORE_ID = Number(process.env.NEXT_PUBLIC_DEMO_STORE_ID ?? 1);
+
+export function getDashboardStoreId(): number {
+  if (typeof window === 'undefined') {
+    return DEFAULT_DASHBOARD_STORE_ID;
+  }
+  const stored = window.localStorage.getItem('dashboard_store_id');
+  if (!stored) {
+    return DEFAULT_DASHBOARD_STORE_ID;
+  }
+  const parsed = Number(stored);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_DASHBOARD_STORE_ID;
+}
+
+export function setDashboardStoreId(storeId: number) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem('dashboard_store_id', String(storeId));
+}
+
 export function getAdminApiKey(): string {
   if (typeof window === 'undefined') return '';
   return window.localStorage.getItem('admin_api_key') ?? '';

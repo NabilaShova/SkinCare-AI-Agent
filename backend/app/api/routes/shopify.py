@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -13,6 +13,19 @@ from app.services.shopify_sync import sync_store_catalog
 from sqlalchemy.orm import Session
 
 router = APIRouter()
+
+
+@router.get("/store-info")
+def get_store_info(store_id: Optional[int] = None, db: Session = Depends(get_db)) -> dict[str, Any]:
+    resolved_id = store_id or settings.DEMO_STORE_ID
+    store = db.query(Store).filter(Store.id == resolved_id, Store.is_active.is_(True)).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+    return {
+        "id": store.id,
+        "name": store.name or "Demo Store",
+        "shopify_domain": store.shopify_domain,
+    }
 
 
 @router.get("/oauth/connect")
