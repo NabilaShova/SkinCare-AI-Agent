@@ -9,7 +9,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.models import Conversation, Message, Order, Product
-from app.services.rag import build_retrieval_query, format_knowledge_context, search_knowledge, search_products
+from app.services.rag import (
+    build_retrieval_query,
+    detect_policy_topic,
+    filter_policy_hits,
+    format_knowledge_context,
+    search_knowledge,
+    search_products,
+)
 
 Intent = Literal[
     "product_recommendation",
@@ -196,7 +203,8 @@ def _intent_instructions(intent: str) -> str:
             "Never guess tracking numbers or delivery dates."
         ),
         "policy_faq": (
-            "Answer using policy and FAQ knowledge only. Quote the relevant policy behavior clearly and briefly. "
+            "Answer only the specific policy topic asked (shipping, returns, or store FAQ). "
+            "Use short bullet points in plain language. Do not mix unrelated policies in one answer. "
             "If the policy context does not contain the answer, say what you do know and offer to escalate."
         ),
         "medical_safety": (
@@ -233,23 +241,69 @@ def _build_system_prompt(intent: str, context: dict[str, Any]) -> str:
     )
 
 
-def _extract_knowledge_points(text: str, query_terms: set[str], limit: int = 4) -> list[str]:
-    cleaned = re.sub(r"\s+", " ", text).strip()
-    if not cleaned:
-        return []
+POLICY_TOPIC_ANSWERS: dict[str, dict[str, Any]] = {
+    "shipping": {
+        "lead": "Yes, we offer international shipping.",
+        "bullets": [
+            "We ship to most international destinations.",
+            "International delivery typically takes 7-14 business days.",
+            "Customers are responsible for customs duties, import taxes, and local fees.",
+            "Tracking is provided when the carrier supports it in the destination country.",
+        ],
+    },
+    "returns": {
+        "lead": "Here is our return and refund policy:",
+        "bullets": [
+            "Unopened and unused products may be returned within 30 days of delivery.",
+            "Opened products may be returned only if defective, damaged on arrival, or the wrong item was shipped.",
+            "Refunds are processed within 5-7 business days after we receive and inspect the return.",
+            "To start a return, contact support with your order number.",
+        ],
+    },
+    "general": {
+        "lead": "Here is what I can share from our store policies:",
+        "bullets": [
+            "Orders over $50 qualify for free standard shipping in the US.",
+            "Unopened products may be returned within 30 days of delivery.",
+            "All products are cruelty-free and dermatologist-tested.",
+        ],
+    },
+}
 
-    parts = re.split(r"\s*-\s+", cleaned)
+
+def _is_policy_header(point: str) -> bool:
+    lowered = point.lower()
+    if "glow beauty" in lowered:
+        return True
+    if re.search(r"\b(policy|shipping|returns?|refund|tracking|restrictions)\.?$", lowered):
+        return True
+    if re.search(r"\((united states|us)\)", lowered):
+        return True
+    return len(point.split()) <= 4
+
+
+def _extract_knowledge_points(text: str, query_terms: set[str], limit: int = 4) -> list[str]:
     points: list[str] = []
-    for part in parts:
-        sentence = part.strip(" .")
-        if len(sentence) < 18:
-            continue
-        if sentence.endswith("."):
-            points.append(sentence)
+    for raw_line in text.split("\n"):
+        line = raw_line.strip()
+        if line.startswith("- "):
+            point = line[2:].strip()
+        elif line.startswith("• "):
+            point = line[2:].strip()
         else:
-            points.append(f"{sentence}.")
+            continue
+        point = point.strip(" .")
+        if len(point) < 18 or _is_policy_header(point):
+            continue
+        points.append(point if point.endswith(".") else f"{point}.")
+
     if not points:
-        points = [cleaned if cleaned.endswith(".") else f"{cleaned}."]
+        cleaned = re.sub(r"\s+", " ", text).strip()
+        for part in re.split(r"\s*-\s+", cleaned):
+            point = part.strip(" .")
+            if len(point) < 18 or _is_policy_header(point):
+                continue
+            points.append(point if point.endswith(".") else f"{point}.")
 
     ranked = sorted(
         points,
@@ -270,30 +324,20 @@ def _extract_knowledge_points(text: str, query_terms: set[str], limit: int = 4) 
 
 
 def _policy_fallback_answer(message: str, knowledge_hits: list[dict[str, Any]]) -> str:
-    if not knowledge_hits:
-        return (
-            "I do not have the store policy details loaded yet. "
-            "Please contact support, or ask me about products and ingredients."
-        )
+    topic = detect_policy_topic(message)
+    template = POLICY_TOPIC_ANSWERS.get(topic, POLICY_TOPIC_ANSWERS["general"])
+    scoped_hits = filter_policy_hits(knowledge_hits, topic)
 
     query_terms = set(re.findall(r"[a-z0-9]{3,}", message.lower()))
     points: list[str] = []
-    for hit in knowledge_hits[:3]:
-        points.extend(_extract_knowledge_points(hit.get("text", ""), query_terms, limit=3))
+    for hit in scoped_hits[:2]:
+        points.extend(_extract_knowledge_points(hit.get("text", ""), query_terms, limit=4))
 
-    if not points:
-        points = _extract_knowledge_points(knowledge_hits[0].get("text", ""), query_terms, limit=3)
-
-    lowered = message.lower()
-    if any(term in lowered for term in ["international", "ship", "shipping", "delivery"]):
-        lead = "Yes, we offer international shipping."
-    elif any(term in lowered for term in ["return", "refund", "exchange"]):
-        lead = "Here is our return and refund policy:"
-    else:
-        lead = "Here is what I can share from our store policies:"
+    if len(points) < 2:
+        points = list(template["bullets"])
 
     body = "\n".join(f"- {point}" for point in points[:4])
-    return f"{lead}\n{body}\n\nLet me know if you want help with a product or order next."
+    return f"{template['lead']}\n{body}\n\nLet me know if you want help with a product or order next."
 
 
 def _ingredient_fallback_answer(message: str, knowledge_hits: list[dict[str, Any]]) -> str:
@@ -442,15 +486,18 @@ def _node_gather_context(
 ) -> AgentState:
     retrieval_query = build_retrieval_query(state["user_message"], profile=profile, history=history)
     products = search_products(db, retrieval_query, state["store_id"], profile=profile)
+    policy_topic = detect_policy_topic(state["user_message"]) if state["intent"] == "policy_faq" else None
     knowledge_hits = search_knowledge(
         db,
         retrieval_query,
         state["store_id"],
         intent=state["intent"],
+        policy_topic=policy_topic,
     )
-    knowledge_text = format_knowledge_context(
-        [hit for hit in knowledge_hits if hit.get("type") != "product"]
-    )
+    document_hits = [hit for hit in knowledge_hits if hit.get("type") != "product"]
+    if policy_topic:
+        document_hits = filter_policy_hits(document_hits, policy_topic)
+    knowledge_text = format_knowledge_context(document_hits)
 
     orders_text = ""
     order_match = re.search(r"#?(\d{3,6})", state["user_message"])
@@ -475,7 +522,8 @@ def _node_gather_context(
         "products": _format_products(products),
         "product_objects": products,
         "knowledge": knowledge_text,
-        "knowledge_hits": knowledge_hits,
+        "knowledge_hits": document_hits,
+        "policy_topic": policy_topic,
         "orders": orders_text,
         "profile": profile,
     }

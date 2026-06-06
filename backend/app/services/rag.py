@@ -43,8 +43,12 @@ def chunk_text(text: str, chunk_size: int = 600, overlap: int = 80) -> list[str]
     if not normalized:
         return []
 
-    blocks = [re.sub(r"[ \t]+", " ", block.strip()) for block in re.split(r"\n\s*\n", normalized)]
-    blocks = [block for block in blocks if block]
+    blocks = []
+    for block in re.split(r"\n\s*\n", normalized):
+        lines = [re.sub(r"[ \t]+", " ", line.strip()) for line in block.split("\n")]
+        cleaned = "\n".join(line for line in lines if line)
+        if cleaned:
+            blocks.append(cleaned)
     if not blocks:
         return []
 
@@ -191,9 +195,52 @@ POLICY_SOURCE_HINTS: dict[str, list[str]] = {
     "return": ["return", "refund"],
     "refund": ["return", "refund"],
     "exchange": ["return", "refund"],
-    "policy": ["shipping", "return", "store-faq"],
     "faq": ["store-faq"],
 }
+
+POLICY_TOPIC_SOURCES: dict[str, list[str]] = {
+    "shipping": ["shipping"],
+    "returns": ["return", "refund"],
+    "general": ["store-faq", "faq"],
+}
+
+POLICY_TOPIC_TERMS: dict[str, list[str]] = {
+    "shipping": ["international", "ship", "shipping", "delivery", "tracking", "domestic", "transit"],
+    "returns": ["return", "refund", "exchange", "money back"],
+}
+
+
+def detect_policy_topic(query: str) -> str:
+    lowered = query.lower()
+    scores = {
+        topic: sum(1 for term in terms if term in lowered)
+        for topic, terms in POLICY_TOPIC_TERMS.items()
+    }
+    shipping_score = scores["shipping"]
+    return_score = scores["returns"]
+
+    if shipping_score and not return_score:
+        return "shipping"
+    if return_score and not shipping_score:
+        return "returns"
+    if shipping_score > return_score:
+        return "shipping"
+    if return_score > shipping_score:
+        return "returns"
+    return "general"
+
+
+def filter_policy_hits(hits: list[dict[str, Any]], topic: str) -> list[dict[str, Any]]:
+    preferred = POLICY_TOPIC_SOURCES.get(topic, [])
+    if not preferred:
+        return hits
+
+    filtered = [
+        hit
+        for hit in hits
+        if any(token in str(hit.get("source", "")).lower() for token in preferred)
+    ]
+    return filtered or hits
 
 INGREDIENT_SOURCE_HINTS: dict[str, list[str]] = {
     "niacinamide": ["ingredient"],
@@ -208,11 +255,29 @@ INGREDIENT_SOURCE_HINTS: dict[str, list[str]] = {
 }
 
 
-def _source_boost(query: str, source: str, intent: str | None = None) -> float:
+def _source_boost(
+    query: str,
+    source: str,
+    intent: str | None = None,
+    policy_topic: str | None = None,
+) -> float:
     lowered_query = query.lower()
     lowered_source = source.lower()
     boost = 0.0
     hint_map = POLICY_SOURCE_HINTS if intent == "policy_faq" else INGREDIENT_SOURCE_HINTS if intent == "ingredient_question" else {}
+
+    if intent == "policy_faq" and policy_topic:
+        preferred = POLICY_TOPIC_SOURCES.get(policy_topic, [])
+        if any(token in lowered_source for token in preferred):
+            boost += 0.55
+        mismatched_topics = [
+            topic
+            for topic, tokens in POLICY_TOPIC_SOURCES.items()
+            if topic != policy_topic and topic != "general"
+            and any(token in lowered_source for token in tokens)
+        ]
+        if mismatched_topics:
+            boost -= 0.45
 
     for term, preferred_sources in hint_map.items():
         if term not in lowered_query:
@@ -263,6 +328,7 @@ def search_knowledge(
     limit: int | None = None,
     include_products: bool = False,
     intent: str | None = None,
+    policy_topic: str | None = None,
 ) -> list[dict[str, Any]]:
     limit = limit or settings.RAG_TOP_K
     records = db.query(EmbeddingRecord).filter(EmbeddingRecord.store_id == store_id).all()
@@ -281,13 +347,20 @@ def search_knowledge(
             "product_title": (record.meta or {}).get("product_title"),
             "type": (record.meta or {}).get("type", "document"),
             "score": _cosine_similarity(query_vector, record.vector)
-            + _source_boost(query, (record.meta or {}).get("source", ""), intent=intent)
+            + _source_boost(
+                query,
+                (record.meta or {}).get("source", ""),
+                intent=intent,
+                policy_topic=policy_topic,
+            )
             + _keyword_overlap_boost(query, record.chunk_text),
         }
         for record in records
     ]
     scored = [item for item in scored if item["score"] >= settings.RAG_MIN_SCORE]
     scored.sort(key=lambda item: item["score"], reverse=True)
+    if intent == "policy_faq" and policy_topic:
+        scored = filter_policy_hits(scored, policy_topic)
     return scored[:limit]
 
 
