@@ -194,13 +194,15 @@ PRIORITY 1 — KNOWLEDGE BASE (HIGH IMPACT)
 [ ] Test prompts listed in knowledge-base/README.txt
 
 PRIORITY 2 — STOREFRONT WIDGET ON DEV STORE
-[ ] Paste integrations/shopify/glow-beauty-chat-widget.liquid into theme.liquid
-[ ] Set store_id=3, preview theme, test chat on storefront
-[ ] Publish theme when satisfied
+[x] Paste integrations/shopify/glow-beauty-chat-widget.liquid into theme.liquid
+[x] Set store_id=3, preview theme, test chat on storefront
+[ ] Publish theme when satisfied (if still on preview only)
 
-PRIORITY 3 — HAIR CARE CATALOG (OPTIONAL)
-[ ] Import glow-beauty-hair-care-import.csv
-[ ] Sync now -> verify ~175 products on Dashboard -> Products
+PRIORITY 3 — HAIR CARE CATALOG
+[x] Import glow-beauty-hair-care-import.csv (done — skip if already in Shopify)
+[ ] Verify ~175 products on Dashboard -> Products (Store ID 3) after last sync
+[ ] Upload hair-care-guide.txt to Knowledge (if not already uploaded)
+[ ] Redeploy skincare-api for hair routine "Yes" fix
 
 PRIORITY 4 — OPERATIONS
 [ ] Confirm DEMO_STORE_ID=3 and NEXT_PUBLIC_DEMO_STORE_ID=3 on Render
@@ -209,6 +211,8 @@ PRIORITY 4 — OPERATIONS
 [ ] Plan Postgres upgrade before 30-day free DB expiry
 
 PRIORITY 5 — MERCHANT ONBOARDING (WHEN SELLING)
+[x] Merchant kit ready: docs/MERCHANT_ONBOARDING_KIT.md
+[x] Welcome email template: docs/MERCHANT_WELCOME_EMAIL.txt
 [ ] Share docs/SHOPIFY_STORE_OWNER_GUIDE.md with store owners
 [ ] Per merchant: OAuth connect -> note Store ID -> send widget snippet
 [ ] Set up manual billing (Stripe/bKash) until Shopify Billing API added
@@ -278,5 +282,5 @@ DEPLOYMENT:     COMPLETE AND WORKING
 SHOPIFY:        CONNECTED (Store ID 3, 120+ products)
 CHAT:           WORKING (full page + embed)
 STOREFRONT:     WIDGET SNIPPET READY FOR THEME INSTALL
-NEXT FOCUS:     Knowledge upload + widget on live theme + optional hair CSV
+NEXT FOCUS:     Hair CSV import + API redeploy + knowledge upload + merchant sales
 ================================================================================

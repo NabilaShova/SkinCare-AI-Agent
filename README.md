@@ -50,6 +50,9 @@ Production-ready AI customer support SaaS for Shopify beauty and skincare mercha
 | `DEPLOYMENT_LOG.txt` | Full deployment history + ops checklist |
 | `render-env-values.txt` | Copy-paste Render environment variables |
 | `docs/SHOPIFY_STORE_OWNER_GUIDE.md` | Merchant subscription + widget integration |
+| `docs/MERCHANT_ONBOARDING_KIT.md` | Operator checklist, QA script, handoff template |
+| `docs/MERCHANT_WELCOME_EMAIL.txt` | Welcome email template for new merchants |
+| `docs/HAIR_PRODUCTS_SETUP.md` | Import 55 hair products + knowledge + test prompts |
 | `knowledge-base/README.txt` | Knowledge upload + product CSV import |
 | `integrations/shopify/README.txt` | Storefront widget install steps |
 
@@ -128,7 +131,7 @@ SkinCare-AI-Agent/
 │   ├── app/chat/            # Full-page customer chat
 │   ├── app/embed/chat/      # Iframe-friendly embed chat
 │   └── components/          # chat-panel, chat-page-with-store, side-nav
-├── docs/                    # SHOPIFY_STORE_OWNER_GUIDE.md
+├── docs/                    # Merchant guides, onboarding kit, hair setup
 ├── integrations/shopify/    # Theme widget Liquid + README
 ├── knowledge-base/          # Policies, guides, product import CSVs (USD)
 ├── scripts/                 # CSV generators, production sync helpers
@@ -326,8 +329,8 @@ Share `docs/SHOPIFY_STORE_OWNER_GUIDE.md` with merchants. Summary:
 ### Recommended next steps
 
 - Upload full `knowledge-base/` pack to Store ID 3
-- Install widget on dev Shopify theme and test
-- Import hair care CSV (+55 products)
+- Verify hair catalog synced (~175 products) — see `docs/HAIR_PRODUCTS_SETUP.md` (import likely done)
+- Onboard paying merchants with `docs/MERCHANT_ONBOARDING_KIT.md`
 - Shopify Protected Customer Data for full order sync
 - Shopify theme app extension + App Store billing
 

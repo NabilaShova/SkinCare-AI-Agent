@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatBubble } from '@/components/chat-bubble';
+import { ChatStarterPrompts } from '@/components/chat-starter-prompts';
 import { fetcher } from '@/lib/api';
+import { CHAT_INPUT_PLACEHOLDER } from '@/lib/chat-starter-prompts';
 
 interface MessageItem {
   role: 'user' | 'assistant';
@@ -15,13 +17,6 @@ interface ChatPanelProps {
   embed?: boolean;
   showAdminLink?: boolean;
 }
-
-const starterPrompts = [
-  'I have oily, acne-prone skin. What moisturizer should I use?',
-  'Can I use Niacinamide with Vitamin C?',
-  'What shampoo helps with hair fall?',
-  'Do you ship internationally?'
-];
 
 export function ChatPanel({ storeId, embed = false, showAdminLink = true }: ChatPanelProps) {
   const [conversationId, setConversationId] = useState<number | null>(null);
@@ -136,7 +131,7 @@ export function ChatPanel({ storeId, embed = false, showAdminLink = true }: Chat
             <h1 className={`mt-1 font-semibold ${embed ? 'text-lg' : 'mt-2 text-2xl'}`}>{storeName}</h1>
             {!embed ? (
               <p className="mt-1 text-sm text-slate-400">
-                Product recommendations, ingredient guidance, policies, and order support
+                Skincare, hair care, ingredients, policies, and order support
               </p>
             ) : null}
           </div>
@@ -192,19 +187,7 @@ export function ChatPanel({ storeId, embed = false, showAdminLink = true }: Chat
 
           {ready && messages.length <= 1 ? (
             <div className="border-t border-slate-800 px-4 py-3 sm:px-6">
-              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Try asking</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {starterPrompts.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => handleStarterClick(item)}
-                    className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-left text-xs text-slate-300 transition hover:border-pink-500/40 hover:text-white sm:text-sm"
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
+              <ChatStarterPrompts onSelect={handleStarterClick} compact={embed} />
             </div>
           ) : null}
 
@@ -219,7 +202,7 @@ export function ChatPanel({ storeId, embed = false, showAdminLink = true }: Chat
                     handleSend();
                   }
                 }}
-                placeholder="Ask about products, ingredients, shipping, or your order..."
+                placeholder={CHAT_INPUT_PLACEHOLDER}
                 disabled={loading}
                 className="min-w-0 flex-1 rounded-2xl border border-slate-800 bg-slate-950/90 px-4 py-3 text-slate-100 outline-none transition focus:border-pink-500 disabled:opacity-60"
               />

@@ -13,6 +13,9 @@ For technical setup by the SaaS operator (you), see the [Integration checklist](
 | `render-env-values.txt` | Operators — Render copy-paste env vars |
 | `knowledge-base/README.txt` | Merchants — knowledge upload + product CSV import |
 | `integrations/shopify/README.txt` | Merchants — widget install quick steps |
+| `docs/MERCHANT_ONBOARDING_KIT.md` | Operators — per-merchant checklist + QA script |
+| `docs/MERCHANT_WELCOME_EMAIL.txt` | Operators — copy-paste welcome email |
+| `docs/HAIR_PRODUCTS_SETUP.md` | Merchants — import 55 hair products + sync |
 
 ---
 

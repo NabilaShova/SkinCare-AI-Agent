@@ -73,9 +73,9 @@ def start_chat(payload: StartChatRequest, request: Request, db: Session = Depend
     enforce_rate_limit(request, namespace="chat", limit_per_minute=settings.RATE_LIMIT_CHAT_PER_MINUTE)
     store = _resolve_store(db, payload.store_id)
     greeting = (
-        f"Hi! I'm the skincare advisor for {store.name}. "
-        "I can help with product recommendations, ingredient questions, shipping, returns, and order status. "
-        "What would you like help with today?"
+        f"Hi! I'm the beauty advisor for {store.name}. "
+        "I can help with skincare and hair care recommendations, ingredient questions, "
+        "shipping, returns, and order status. What would you like help with today?"
     )
 
     conversation = Conversation(

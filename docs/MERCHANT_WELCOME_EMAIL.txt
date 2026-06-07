@@ -1,0 +1,54 @@
+Subject: Welcome to Skincare AI Agent — Your store is ready to connect
+
+Hi [MERCHANT_NAME],
+
+Thank you for subscribing to Skincare AI Agent ([PLAN_NAME] plan). Your AI beauty advisor is ready to connect to [STORE_NAME].
+
+WHAT YOU GET
+- A chat button on your Shopify storefront (skincare + hair care advice)
+- Product recommendations from your own catalog
+- Ingredient compatibility answers
+- Shipping, returns, and order-status help
+- A dashboard to sync products and upload policies
+
+YOUR ACCOUNT DETAILS
+- Dashboard: https://skincare-frontend-z72h.onrender.com/dashboard/settings
+- Your Store ID: [STORE_ID]
+- Admin API key: (sent in a separate secure message — paste it in Settings and click Save)
+
+STEP 1 — CONNECT SHOPIFY (5 minutes)
+1. Open the dashboard link above
+2. Save your Admin API key
+3. Enter your shop: [SHOP_DOMAIN].myshopify.com
+4. Click Connect Shopify and approve the app
+5. Click Sync now to import your products
+
+STEP 2 — ADD THE CHAT BUTTON TO YOUR STORE (10 minutes)
+1. Shopify Admin → Online Store → Themes → Edit code
+2. Open Layout → theme.liquid
+3. Paste the widget code we sent you (before </body>)
+4. Confirm skincare_ai_store_id = [STORE_ID]
+5. Save → Preview → click the pink chat button to test
+6. Publish the theme when you are happy
+
+STEP 3 — UPLOAD YOUR POLICIES (recommended)
+Dashboard → Knowledge → upload your shipping policy, return policy, and any brand FAQs.
+We can also provide starter guides — ask us if you want the full pack.
+
+TEST THESE IN CHAT
+- "What moisturizer helps oily acne-prone skin?"
+- "What shampoo helps with hair fall?"
+- "Do you ship internationally?"
+
+SUPPORT
+Email: [YOUR_SUPPORT_EMAIL]
+We typically respond within [RESPONSE_TIME].
+
+Optional add-ons:
+- Hair care catalog import (55 products) — see docs/HAIR_PRODUCTS_SETUP.md
+- Custom knowledge for your brand formulas
+
+Welcome aboard,
+[YOUR_NAME]
+Skincare AI Agent
+https://skincare-frontend-z72h.onrender.com
