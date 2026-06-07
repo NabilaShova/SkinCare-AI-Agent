@@ -15,7 +15,8 @@ Production-ready AI customer support SaaS for Shopify beauty and skincare mercha
 
 ## Features
 
-- AI skincare consultant chat at `/chat`
+- AI skincare consultant chat at `/chat` and embeddable widget at `/embed/chat?store_id=N`
+- Shopify storefront chat button via theme snippet (`integrations/shopify/glow-beauty-chat-widget.liquid`)
 - Product recommendations from synced Shopify catalog
 - Ingredient compatibility and FAQ answers via RAG
 - Order status lookup when order number is provided
@@ -42,6 +43,22 @@ Production-ready AI customer support SaaS for Shopify beauty and skincare mercha
 **Shopify OAuth redirect URL:** `https://skincare-api-68pp.onrender.com/api/auth/callback`
 
 Full deployment history and step-by-step ops guide: `DEPLOYMENT_LOG.txt`
+
+## Shopify storefront chat widget
+
+Merchants can add a floating chat button to their Shopify theme:
+
+1. Paste `integrations/shopify/glow-beauty-chat-widget.liquid` into `theme.liquid` before `</body>`
+2. Set `skincare_ai_store_id` to the merchant's Store ID
+3. Preview the theme and click the chat button
+
+**Test embed without Shopify:**
+
+```
+https://skincare-frontend-z72h.onrender.com/embed/chat?store_id=3
+```
+
+**Full merchant onboarding guide (subscription + integration):** `docs/SHOPIFY_STORE_OWNER_GUIDE.md`
 
 ## Store IDs (Important)
 

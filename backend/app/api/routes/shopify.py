@@ -15,10 +15,32 @@ from sqlalchemy.orm import Session
 router = APIRouter()
 
 
+def _normalize_shop_domain(shop: str) -> str:
+    normalized = shop.strip().lower()
+    if not normalized:
+        return normalized
+    if not normalized.endswith(".myshopify.com"):
+        normalized = f"{normalized}.myshopify.com"
+    return normalized
+
+
 @router.get("/store-info")
-def get_store_info(store_id: Optional[int] = None, db: Session = Depends(get_db)) -> dict[str, Any]:
-    resolved_id = store_id or settings.DEMO_STORE_ID
-    store = db.query(Store).filter(Store.id == resolved_id, Store.is_active.is_(True)).first()
+def get_store_info(
+    store_id: Optional[int] = None,
+    shop: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    store: Store | None = None
+    if shop:
+        domain = _normalize_shop_domain(shop)
+        store = (
+            db.query(Store)
+            .filter(Store.shopify_domain == domain, Store.is_active.is_(True))
+            .first()
+        )
+    else:
+        resolved_id = store_id or settings.DEMO_STORE_ID
+        store = db.query(Store).filter(Store.id == resolved_id, Store.is_active.is_(True)).first()
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
     return {
