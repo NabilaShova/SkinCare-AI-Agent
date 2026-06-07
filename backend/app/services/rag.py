@@ -111,6 +111,14 @@ REQUESTED_PRODUCT_TYPES: dict[str, list[str]] = {
     "spot treatment": ["spot treatment", "pimple patch", "acne patch", "hydrocolloid"],
     "eye care": ["eye cream", "eye serum", "eye gel"],
     "lip care": ["lip balm", "lip mask", "lip treatment"],
+    "shampoo": ["shampoo"],
+    "conditioner": ["conditioner"],
+    "hair oil": ["hair oil", "coconut oil", "scalp oil", "hair oils"],
+    "hair serum": ["hair serum", "hair treatment serum"],
+    "hair mask": ["hair mask", "deep conditioner"],
+    "scalp treatment": ["scalp treatment", "scalp tonic", "scalp scrub", "scalp cream"],
+    "leave-in": ["leave-in", "leave in"],
+    "styling": ["styling", "hairspray", "edge control", "dry shampoo"],
 }
 
 SKIN_TYPES = ["oily", "dry", "combination", "sensitive", "normal"]
@@ -183,6 +191,48 @@ CONCERN_SIGNALS: dict[str, dict[str, Any]] = {
         "preferred_types": ["serum", "moisturizer", "cleanser"],
         "tags": ["redness", "soothing", "calm", "rosacea"],
         "label": "redness and irritation",
+    },
+    "hair_fall": {
+        "match": [
+            "hair fall",
+            "hair loss",
+            "falling hair",
+            "thinning hair",
+            "hair shedding",
+            "hair breakage",
+        ],
+        "ingredients": ["biotin", "caffeine", "keratin", "rosemary", "castor", "collagen"],
+        "preferred_types": ["shampoo", "hair serum", "scalp treatment", "hair oil"],
+        "tags": ["hair-fall", "hair-growth", "strengthening", "thinning", "bond-repair"],
+        "label": "hair fall and thinning",
+    },
+    "dandruff": {
+        "match": ["dandruff", "flaky scalp", "itchy scalp", "scalp flake", "seborrheic"],
+        "ingredients": ["pyrithione", "zinc", "tea tree", "salicylic", "menthol", "ketoconazole"],
+        "preferred_types": ["shampoo", "scalp treatment"],
+        "tags": ["dandruff", "itchy-scalp", "oily-scalp", "anti-dandruff", "scalp"],
+        "label": "dandruff and itchy scalp",
+    },
+    "frizz": {
+        "match": ["frizz", "frizzy", "flyaway", "humid hair", "unmanageable hair"],
+        "ingredients": ["keratin", "argan", "marula", "silicone", "smoothing"],
+        "preferred_types": ["shampoo", "conditioner", "hair serum", "leave-in"],
+        "tags": ["frizz", "smooth", "keratin", "humid-climate", "anti-frizz"],
+        "label": "frizz in humid weather",
+    },
+    "dry_hair": {
+        "match": ["dry hair", "damaged hair", "brittle hair", "split end", "rough hair"],
+        "ingredients": ["keratin", "ceramide", "shea", "coconut", "argan", "bond"],
+        "preferred_types": ["conditioner", "hair mask", "hair oil", "shampoo"],
+        "tags": ["dry", "dry-damaged", "repair", "hydration", "damaged"],
+        "label": "dry or damaged hair",
+    },
+    "curly_hair": {
+        "match": ["curly hair", "wavy hair", "curl definition", "coily hair", "natural curls"],
+        "ingredients": ["shea", "coconut", "flaxseed", "glycerin", "curl"],
+        "preferred_types": ["shampoo", "leave-in", "conditioner", "hair oil"],
+        "tags": ["curly", "wavy", "definition", "hydration", "natural"],
+        "label": "curly and wavy hair",
     },
 }
 
@@ -496,6 +546,15 @@ SKIN_ADVISORY_SOURCE_HINTS: dict[str, list[str]] = {
     "recommend": ["skin-concerns", "routine-formulas", "skin-types"],
     "suggest": ["skin-concerns", "routine-formulas", "skin-types"],
     "prevent": ["skin-concerns", "active-ingredients", "routine-formulas"],
+    "hair": ["hair-care", "routine-formulas"],
+    "shampoo": ["hair-care"],
+    "conditioner": ["hair-care"],
+    "dandruff": ["hair-care"],
+    "hair fall": ["hair-care"],
+    "hair loss": ["hair-care"],
+    "frizz": ["hair-care"],
+    "scalp": ["hair-care"],
+    "curly": ["hair-care"],
     "treatment": ["skin-concerns", "active-ingredients"],
 }
 

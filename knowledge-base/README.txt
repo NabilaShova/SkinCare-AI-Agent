@@ -19,9 +19,10 @@ RECOMMENDED UPLOAD ORDER
 6. routine-formulas-guide.txt
 7. active-ingredients-clinical-guide.txt
 8. ingredient-compatibility-guide.txt
-9. ingredient-faq.txt
-10. product-usage-guide.txt
-11. skin-consultation-guide.txt
+9. hair-care-guide.txt
+10. ingredient-faq.txt
+11. product-usage-guide.txt
+12. skin-consultation-guide.txt
 
 CUSTOMIZE BEFORE UPLOAD
 - Replace "Glow Beauty Co." with your real store name
@@ -38,36 +39,49 @@ TEST PROMPTS AFTER UPLOAD
 - "What routine is best for dry sensitive skin?"
 - "Can I use retinol and salicylic acid together?"
 - "How do I treat dark spots and hyperpigmentation?"
+- "What shampoo helps with hair fall in humid weather?"
+- "I have dandruff — what should I use?"
+- "Recommend products for frizzy curly hair."
 
 SHOPIFY PRODUCT IMPORT CSV
 - glow-beauty-products-import.csv (120 trending-inspired skincare products, BDT pricing)
+- glow-beauty-hair-care-import.csv (55 trending hair care products for Bangladesh, USD pricing)
 - product_template.csv (Shopify sample template)
 
-PRICES ARE IN BDT
-- Converted at 110 BDT per USD reference price
-- Rounded to retail-friendly amounts (nearest 50 BDT under 2000, nearest 100 BDT above)
-- Example: serum ~BDT 800-4000, routine sets ~BDT 6500-10500
-- Set Shopify store currency to BDT BEFORE import (Settings -> Store details -> Store currency)
+PRICES
+- Skincare CSV (glow-beauty-products-import.csv): USD
+- Hair care CSV (glow-beauty-hair-care-import.csv): USD
+- Set Shopify store currency to USD before import (Settings -> Store details -> Store currency)
 
 HOW TO IMPORT PRODUCTS INTO SHOPIFY
-1. Shopify Admin -> Settings -> Store details -> set currency to Bangladeshi Taka (BDT)
-2. Products -> Import -> choose glow-beauty-products-import.csv
-3. Review columns and click Import products
-4. AI dashboard Settings (Store ID 3) -> Sync now
-5. Verify at Dashboard -> Products (Store ID 3)
+1. Shopify Admin -> Settings -> Store details -> set currency to US Dollar (USD)
+2. Products -> Import -> choose glow-beauty-products-import.csv (skincare)
+3. Products -> Import -> choose glow-beauty-hair-care-import.csv (hair care — can import after skincare)
+4. Review columns and click Import products for each file
+5. AI dashboard Settings (Store ID 3) -> Sync now
+6. Verify at Dashboard -> Products (Store ID 3) — expect ~175 products after both imports
 
 REGENERATE CSV
   py -3 scripts/generate_product_csv.py
+  py -3 scripts/generate_hair_care_csv.py
 
-PRODUCT CSV COVERAGE (120 items)
+PRODUCT CSV COVERAGE
+Skincare (120 items)
 - Cleansers, toners, serums, moisturizers, sunscreens
 - Masks, exfoliants, eye care, lip care, body care
 - Mists, oils, spot treatments, routine sets
 - Tags for skin type, concern, ingredient, and price tier
 - Inspired by trending products from klassy.com.bd and global bestsellers
 
+Hair care (55 items)
+- Shampoos, conditioners, hair oils, serums, masks
+- Scalp treatments, leave-ins, styling, routine sets
+- Bangladesh-popular brands: Sunsilk, Dove, Head & Shoulders, Parachute, Vatika, Indulekha
+- Concern tags: hair-fall, dandruff, frizz, curly, dry-damaged, humid-climate, hijab-friendly
+
 FILES IN THIS FOLDER
 - glow-beauty-products-import.csv
+- glow-beauty-hair-care-import.csv
 - product_template.csv
 - shipping-policy.txt
 - return-refund-policy.txt
@@ -77,6 +91,7 @@ FILES IN THIS FOLDER
 - routine-formulas-guide.txt (morning/night routines by skin type and concern)
 - active-ingredients-clinical-guide.txt (BHA, retinol, vitamin C, niacinamide, etc.)
 - ingredient-compatibility-guide.txt (layering and combination rules)
+- hair-care-guide.txt (hair fall, dandruff, frizz, curly hair — Bangladesh climate)
 - ingredient-faq.txt
 - product-usage-guide.txt
 - skin-consultation-guide.txt

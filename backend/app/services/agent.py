@@ -145,6 +145,16 @@ PRODUCT_BROWSE_TERMS = [
     "cleanser",
     "toner",
     "mask",
+    "shampoo",
+    "conditioner",
+    "hair oil",
+    "hair serum",
+    "hair mask",
+    "hair fall",
+    "dandruff",
+    "frizz",
+    "curly hair",
+    "scalp",
     "affordable",
     "reasonable",
     "budget",
@@ -949,6 +959,11 @@ def _extract_profile(message: str, existing: dict[str, Any]) -> dict[str, Any]:
                 "sensitivity": "redness",
                 "hyperpigmentation": "hyperpigmentation",
                 "redness": "redness",
+                "hair_fall": "hair fall",
+                "dandruff": "dandruff",
+                "frizz": "frizz",
+                "dry_hair": "dry hair",
+                "curly_hair": "curly hair",
             }.get(concern_key, concern_key)
             if mapped not in concerns:
                 concerns.append(mapped)
