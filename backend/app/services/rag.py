@@ -690,6 +690,9 @@ PRODUCT_TYPE_HINTS: dict[str, list[str]] = {
     "serum": ["serum"],
     "sunscreen": ["spf", "sunscreen"],
     "routine": ["cleanser", "serum", "moistur", "sunscreen"],
+    "shampoo": ["shampoo", "cleansing"],
+    "conditioner": ["conditioner", "detangle"],
+    "hair": ["shampoo", "conditioner", "scalp", "hair oil", "hair serum", "hair mask"],
 }
 
 
