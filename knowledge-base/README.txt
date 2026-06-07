@@ -6,7 +6,7 @@ These files are ready to upload to your production knowledge base.
 HOW TO UPLOAD
 1. Open https://skincare-frontend-z72h.onrender.com/dashboard/knowledge
 2. Save your ADMIN_API_KEY in Settings first
-3. Set Store ID (usually 1, or your connected store ID)
+3. Set Store ID to your connected store (production: 3, local demo: 1)
 4. Upload each .txt file one at a time (or all 6 in sequence)
 5. Wait for status: processed
 
@@ -44,7 +44,7 @@ TEST PROMPTS AFTER UPLOAD
 - "Recommend products for frizzy curly hair."
 
 SHOPIFY PRODUCT IMPORT CSV
-- glow-beauty-products-import.csv (120 trending-inspired skincare products, BDT pricing)
+- glow-beauty-products-import.csv (120 trending-inspired skincare products, USD pricing)
 - glow-beauty-hair-care-import.csv (55 trending hair care products for Bangladesh, USD pricing)
 - product_template.csv (Shopify sample template)
 
@@ -95,3 +95,9 @@ FILES IN THIS FOLDER
 - ingredient-faq.txt
 - product-usage-guide.txt
 - skin-consultation-guide.txt
+
+STOREFRONT CHAT WIDGET
+After products are synced, add the floating chat button to the Shopify theme:
+- Snippet: integrations/shopify/glow-beauty-chat-widget.liquid
+- Install steps: integrations/shopify/README.txt
+- Full merchant guide: docs/SHOPIFY_STORE_OWNER_GUIDE.md

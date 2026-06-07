@@ -1,30 +1,66 @@
 # Copy these into Render Dashboard -> Environment (after first deploy)
-# Your live URLs (2026-06-06):
+# Last updated: 2026-06-07
+#
+# Live URLs:
 #   API:      https://skincare-api-68pp.onrender.com
 #   Frontend: https://skincare-frontend-z72h.onrender.com
+#   Chat:     https://skincare-frontend-z72h.onrender.com/chat?store_id=3
+#   Embed:    https://skincare-frontend-z72h.onrender.com/embed/chat?store_id=3
 
-# --- skincare-api service -> Environment ---
+# =============================================================================
+# skincare-api service -> Environment
+# =============================================================================
 BACKEND_PUBLIC_URL=https://skincare-api-68pp.onrender.com
 FRONTEND_PUBLIC_URL=https://skincare-frontend-z72h.onrender.com
 CORS_ORIGINS=https://skincare-frontend-z72h.onrender.com
 SHOPIFY_APP_URL=https://skincare-frontend-z72h.onrender.com
 
-# --- skincare-frontend service -> Environment ---
+# Default store when chat/embed omits store_id (use connected production store)
+DEMO_STORE_ID=3
+
+# AI models
+OPENAI_CHAT_MODEL=gpt-4o
+OPENAI_INTENT_MODEL=gpt-4o-mini
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+
+# RAG / chat tuning
+RAG_TOP_K=6
+PRODUCT_TOP_K=6
+CHAT_HISTORY_LIMIT=16
+CHAT_AUTO_LEARN_ON_FEEDBACK=true
+
+# Production flags
+SEED_DEMO_DATA=false
+ENVIRONMENT=production
+
+# Secrets (set in Render, never commit):
+# OPENAI_API_KEY=
+# SHOPIFY_API_KEY=
+# SHOPIFY_API_SECRET=
+# ADMIN_API_KEY=
+# JWT_SECRET=
+
+# =============================================================================
+# skincare-frontend service -> Environment
+# =============================================================================
 NEXT_PUBLIC_API_URL=https://skincare-api-68pp.onrender.com
 NEXT_PUBLIC_SHOPIFY_APP_URL=https://skincare-frontend-z72h.onrender.com
+NEXT_PUBLIC_DEMO_STORE_ID=3
+NEXT_PUBLIC_STORE_NAME=Glow Beauty Co.
 
-# --- Shopify Partner Dashboard ---
+# IMPORTANT: NEXT_PUBLIC_* values are baked at build time.
+# After changing any of them -> Manual Deploy -> Deploy latest commit.
+
+# =============================================================================
+# Shopify Partner Dashboard
+# =============================================================================
 # App URL:       https://skincare-frontend-z72h.onrender.com
 # Redirect URL:  https://skincare-api-68pp.onrender.com/api/auth/callback
 # Scopes:        read_products, read_orders, read_content
-# Dev store:     glow-beauty-dev-dmf5uuka.myshopify.com (connected)
+# Dev store:     glow-beauty-dev-dmf5uuka.myshopify.com (Store ID 3)
 
-# --- Optional accuracy tuning (skincare-api) ---
-# OPENAI_CHAT_MODEL=gpt-4o
-# OPENAI_INTENT_MODEL=gpt-4o-mini
-# RAG_TOP_K=6
-# PRODUCT_TOP_K=6
-# CHAT_HISTORY_LIMIT=16
-
-# IMPORTANT: After updating skincare-frontend env vars, click
-# Manual Deploy -> Deploy latest commit (rebuild required).
+# =============================================================================
+# Storefront widget (merchant theme)
+# =============================================================================
+# Snippet: integrations/shopify/glow-beauty-chat-widget.liquid
+# Set skincare_ai_store_id to merchant Store ID before pasting into theme.liquid

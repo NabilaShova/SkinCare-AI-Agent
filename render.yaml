@@ -52,6 +52,10 @@ services:
         value: production
       - key: SEED_DEMO_DATA
         value: "false"
+      - key: DEMO_STORE_ID
+        value: "3"
+      - key: CHAT_AUTO_LEARN_ON_FEEDBACK
+        value: "true"
       - key: CORS_ORIGINS
         sync: false
       - key: RATE_LIMIT_CHAT_PER_MINUTE
@@ -71,5 +75,9 @@ services:
         sync: false
       - key: NEXT_PUBLIC_SHOPIFY_APP_URL
         sync: false
+      - key: NEXT_PUBLIC_DEMO_STORE_ID
+        value: "3"
+      - key: NEXT_PUBLIC_STORE_NAME
+        value: Glow Beauty Co.
       - key: NODE_VERSION
         value: "20"

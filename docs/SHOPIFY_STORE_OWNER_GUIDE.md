@@ -4,6 +4,16 @@ This guide is for **beauty and skincare Shopify merchants** who want to subscrib
 
 For technical setup by the SaaS operator (you), see the [Integration checklist](#for-the-saas-operator-integration-checklist) at the end.
 
+**Related documentation:**
+
+| File | Audience |
+|------|----------|
+| `README.md` | Developers — architecture, env vars, troubleshooting |
+| `DEPLOYMENT_LOG.txt` | Operators — deployment history and ops checklist |
+| `render-env-values.txt` | Operators — Render copy-paste env vars |
+| `knowledge-base/README.txt` | Merchants — knowledge upload + product CSV import |
+| `integrations/shopify/README.txt` | Merchants — widget install quick steps |
+
 ---
 
 ## What merchants get
@@ -83,6 +93,8 @@ You will receive:
 4. Click **Connect Shopify** and approve permissions in Shopify Admin.
 5. After redirect, note your **Store ID** in **Connected stores**.
 6. Click **Sync now** to import products, orders, and customers.
+
+**Optional — expand catalog:** Import `knowledge-base/glow-beauty-products-import.csv` (120 skincare) and/or `glow-beauty-hair-care-import.csv` (55 hair care) in Shopify Admin → Products → Import (USD pricing). Sync again after import.
 
 **Required Shopify permissions:** read products, read orders, read content.
 
@@ -174,6 +186,7 @@ Preview on a phone or use Chrome DevTools device mode. The widget should resize 
 | Button shows but iframe blank | Check `skincare_ai_app_url` and that embed route is deployed |
 | Generic / demo answers | Run **Sync now**; upload knowledge files |
 | OAuth fails | Confirm redirect URL in Partner app matches `https://skincare-api-68pp.onrender.com/api/auth/callback` |
+| Frontend deploy / build failed | Ensure latest code uses `chat-page-with-store.tsx` (Suspense for Next.js 15); redeploy frontend |
 
 ---
 
@@ -211,27 +224,13 @@ Use this when onboarding a **new paying merchant**.
 
 ### Render environment (production)
 
-**API service:**
+Copy full values from `render-env-values.txt`. Minimum:
 
-```
-DEMO_STORE_ID=<default for chat without store_id>
-SHOPIFY_API_KEY=...
-SHOPIFY_API_SECRET=...
-BACKEND_PUBLIC_URL=https://skincare-api-68pp.onrender.com
-FRONTEND_PUBLIC_URL=https://skincare-frontend-z72h.onrender.com
-CORS_ORIGINS=https://skincare-frontend-z72h.onrender.com
-ADMIN_API_KEY=<strong secret>
-OPENAI_API_KEY=...
-CHAT_AUTO_LEARN_ON_FEEDBACK=true
-```
+**API service:** `DEMO_STORE_ID`, `SHOPIFY_API_*`, `BACKEND_PUBLIC_URL`, `FRONTEND_PUBLIC_URL`, `CORS_ORIGINS`, `ADMIN_API_KEY`, `OPENAI_API_KEY`, `CHAT_AUTO_LEARN_ON_FEEDBACK=true`, `OPENAI_CHAT_MODEL=gpt-4o`
 
-**Frontend service:**
+**Frontend service:** `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_DEMO_STORE_ID`, `NEXT_PUBLIC_STORE_NAME`
 
-```
-NEXT_PUBLIC_API_URL=https://skincare-api-68pp.onrender.com
-NEXT_PUBLIC_DEMO_STORE_ID=<primary merchant store id>
-NEXT_PUBLIC_STORE_NAME=<merchant display name>
-```
+Redeploy frontend after any `NEXT_PUBLIC_*` change.
 
 ### Per-merchant setup
 
@@ -265,4 +264,4 @@ NEXT_PUBLIC_STORE_NAME=<merchant display name>
 
 ---
 
-*Document version: June 2025 — Skincare AI Agent*
+*Document version: June 2026 — Skincare AI Agent*

@@ -3,7 +3,7 @@ SKINCARE AI AGENT - PRODUCTION DEPLOYMENT LOG
 ================================================================================
 Project: AI Customer Support Agent for Shopify Beauty & Skincare Stores
 Started: 2026-06-06
-Last Updated: 2026-06-06
+Last Updated: 2026-06-07
 Repository: https://github.com/NabilaShova/SkinCare-AI-Agent
 ================================================================================
 
@@ -17,15 +17,18 @@ RENDER ENV + REDEPLOY:      [##########] 100% COMPLETE
 CHAT ON PRODUCTION:         [##########] 100% WORKING
 SHOPIFY APP + STORE CONNECT:[##########] 100% WORKING
 PRODUCT SYNC:               [##########] 100% WORKING
-KNOWLEDGE BASE UPLOAD:      [####------]  40% OPTIONAL NEXT
+STOREFRONT CHAT WIDGET:     [##########] 100% READY (theme snippet + embed)
+KNOWLEDGE BASE UPLOAD:      [######----]  60% RECOMMENDED NEXT
 ORDER/CUSTOMER SYNC (PCD):  [##--------]  20% OPTIONAL (needs Shopify approval)
+SHOPIFY APP STORE/BILLING:  [          ]   0% OPTIONAL LATER
 CUSTOM DOMAIN / PAID TIER:  [          ]   0% OPTIONAL LATER
 
 YOUR LIVE PRODUCTION URLS:
   API:       https://skincare-api-68pp.onrender.com
   Frontend:  https://skincare-frontend-z72h.onrender.com
   Health:    https://skincare-api-68pp.onrender.com/health
-  Chat:      https://skincare-frontend-z72h.onrender.com/chat
+  Chat:      https://skincare-frontend-z72h.onrender.com/chat?store_id=3
+  Embed:     https://skincare-frontend-z72h.onrender.com/embed/chat?store_id=3
   Settings:  https://skincare-frontend-z72h.onrender.com/dashboard/settings
   Products:  https://skincare-frontend-z72h.onrender.com/dashboard/products
   Knowledge: https://skincare-frontend-z72h.onrender.com/dashboard/knowledge
@@ -33,309 +36,247 @@ YOUR LIVE PRODUCTION URLS:
 SHOPIFY OAUTH:
   App URL:      https://skincare-frontend-z72h.onrender.com
   Redirect URL: https://skincare-api-68pp.onrender.com/api/auth/callback
-  Dev store:    glow-beauty-dev-dmf5uuka.myshopify.com (connected)
+  Dev store:    glow-beauty-dev-dmf5uuka.myshopify.com (Store ID 3)
 
-KEY GIT COMMITS:
+DOCUMENTATION:
+  README.md                        Project overview + troubleshooting
+  DEPLOYMENT_LOG.txt               This file (ops history)
+  render-env-values.txt            Copy-paste Render env vars
+  docs/SHOPIFY_STORE_OWNER_GUIDE.md Merchant subscription + widget install
+  knowledge-base/README.txt          Knowledge upload + product CSV import
+  integrations/shopify/README.txt    Storefront widget install steps
+
+KEY GIT COMMITS (recent):
   4599b27  Production deployment + Shopify OAuth
-  234cd8f  Switch Render Blueprint to free tier
-  21efd5a  Document live Render URLs
-  a662e3d  Fix production chat (empty DB seed + chat UX)
   12d2422  Partial Shopify sync (403 customer API fix)
+  a662e3d  Fix production chat (empty DB seed + chat UX)
+  7f2ed63  Chat learning + concern-aware product recommendations
+  8fca3a6  Dashboard sidebar fixes (active nav, store name)
+  de51690  Evidence-based skincare knowledge guides + RAG boosts
+  4cb9a99  Ingredient pair answers + "Yes please" follow-up fix
+  525016b  README 120-product update + chat "our store" voice
+  (latest) Storefront embed widget, hair care CSV, hair concern routing
 
 ================================================================================
-PHASE 0 — LOCAL DEVELOPMENT (COMPLETED EARLIER)
+PHASE 0 — LOCAL DEVELOPMENT (COMPLETED)
 ================================================================================
-[x] Built Next.js frontend + FastAPI backend
-[x] Docker Compose local stack (postgres + pgvector + api + frontend)
+[x] Next.js 15 frontend + FastAPI backend
+[x] Docker Compose (postgres + pgvector + api + frontend)
 [x] LangGraph agent routing + RAG pipeline
-[x] Demo store seed data for local testing
-[x] Customer chat UI at /chat
-[x] Admin dashboard (settings, products, knowledge, conversations)
+[x] Demo store seed (Store ID 1, 8 products)
+[x] Customer chat at /chat
+[x] Embeddable chat at /embed/chat?store_id=N
+[x] Admin dashboard (settings, products, knowledge, conversations, analytics)
 
 ================================================================================
-PHASE 1 — OPENAI API KEY (DETAILED STEPS)
+PHASE 1 — OPENAI API KEY
 ================================================================================
-WHAT: Secret key from OpenAI for chat responses and embeddings.
+[x] OPENAI_API_KEY set on Render -> skincare-api
+[x] OPENAI_CHAT_MODEL=gpt-4o (production)
+[x] OPENAI_INTENT_MODEL=gpt-4o-mini
+[x] OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 
-[x] 1. Open https://platform.openai.com and sign in
-[x] 2. Add billing: Profile -> Billing -> Add payment method
-[x] 3. Open https://platform.openai.com/api-keys
-[x] 4. Create new secret key named "Skincare-AI-Render"
-[x] 5. Copy key immediately (sk-proj-... or sk-...)
-[x] 6. Paste into Render -> skincare-api -> Environment -> OPENAI_API_KEY
-[x] 7. Never commit key to GitHub
-
-COST: Pay-as-you-go. Testing = pennies to a few dollars.
-LIMITS: platform.openai.com -> Settings -> Limits (set monthly cap)
-
-WITHOUT KEY: App runs but uses basic fallback (less accurate chat).
+Without key: fallback responder uses seeded catalog + policy data only.
 
 ================================================================================
-PHASE 2 — ADMIN_API_KEY & JWT_SECRET (DETAILED STEPS)
+PHASE 2 — ADMIN_API_KEY & JWT_SECRET
 ================================================================================
-ADMIN_API_KEY = dashboard password (save in Settings page)
-JWT_SECRET    = backend token signing (never shown in UI)
-
-GENERATE (PowerShell, run twice):
-  -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 40 | ForEach-Object {[char]$_})
-
-[x] Entered in Render Blueprint deploy prompt
+[x] Generated and set on Render Blueprint deploy
 [x] ADMIN_API_KEY saved in production Settings page
 
 ================================================================================
-PHASE 3 — RENDER BLUEPRINT DEPLOYMENT (DETAILED STEPS)
+PHASE 3 — RENDER BLUEPRINT DEPLOYMENT
 ================================================================================
-[x] C1.  Push repo to GitHub (NabilaShova/SkinCare-AI-Agent, main)
-[x] C2.  Log in https://dashboard.render.com
-[x] C3.  New -> Blueprint
-[x] C4.  Connect GitHub repo, branch main
-[x] C5.  Blueprint name: "Skincare AI Agent"
-[x] C6.  render.yaml detected 3 resources (free tier):
-         - skincare-db (PostgreSQL)
-         - skincare-api (Docker backend)
-         - skincare-frontend (Node frontend)
-[x] C7.  Enter secrets: OPENAI_API_KEY, ADMIN_API_KEY, JWT_SECRET
-[x] C8.  Click "Deploy Blueprint" (not "Apply")
-[x] C9.  Wait for all services Live (5-15 min)
-[x] C10. Copy URLs:
-         Frontend: https://skincare-frontend-z72h.onrender.com
-         API:      https://skincare-api-68pp.onrender.com
+[x] GitHub repo connected (NabilaShova/SkinCare-AI-Agent, main)
+[x] render.yaml -> skincare-db, skincare-api, skincare-frontend (free tier)
+[x] Live URLs copied to render-env-values.txt
 
-ENV VARS SET (skincare-api):
-[x] BACKEND_PUBLIC_URL  = https://skincare-api-68pp.onrender.com
-[x] FRONTEND_PUBLIC_URL = https://skincare-frontend-z72h.onrender.com
-[x] CORS_ORIGINS        = https://skincare-frontend-z72h.onrender.com
-[x] SHOPIFY_APP_URL     = https://skincare-frontend-z72h.onrender.com
-[x] SHOPIFY_API_KEY     = (from Partner Dashboard)
-[x] SHOPIFY_API_SECRET  = (from Partner Dashboard)
+ENV VARS (skincare-api) — see render-env-values.txt for full list:
+[x] BACKEND_PUBLIC_URL, FRONTEND_PUBLIC_URL, CORS_ORIGINS
+[x] SHOPIFY_API_KEY, SHOPIFY_API_SECRET
+[x] DEMO_STORE_ID=3
+[x] CHAT_AUTO_LEARN_ON_FEEDBACK=true
+[x] SEED_DEMO_DATA=false
 
-ENV VARS SET (skincare-frontend):
-[x] NEXT_PUBLIC_API_URL         = https://skincare-api-68pp.onrender.com
-[x] NEXT_PUBLIC_SHOPIFY_APP_URL = https://skincare-frontend-z72h.onrender.com
-[x] Manual redeploy after env change (NEXT_PUBLIC_* baked at build time)
+ENV VARS (skincare-frontend):
+[x] NEXT_PUBLIC_API_URL
+[x] NEXT_PUBLIC_DEMO_STORE_ID=3
+[x] NEXT_PUBLIC_STORE_NAME=Glow Beauty Co.
 
-VERIFICATION:
-[x] /health returns {"status":"ok"}
-[x] Landing page loads
-[x] Chat works at /chat
-
-FREE TIER NOTES:
-- No Render payment required
-- Services sleep after 15 min idle (~30-60s cold start)
-- Free Postgres expires ~30 days (upgrade before then)
-
-See also: render-env-values.txt
+IMPORTANT: Redeploy frontend after ANY NEXT_PUBLIC_* change (baked at build).
 
 ================================================================================
-PHASE 4 — SHOPIFY PARTNER APP (DETAILED STEPS)
+PHASE 4 — SHOPIFY PARTNER APP
 ================================================================================
-[x] A1. Partner account: https://dev.shopify.com/dashboard
-[x] A2. Dev store created: glow-beauty-dev-dmf5uuka.myshopify.com
-[x] A3. Apps -> Create app manually
-         Name: Skincare AI Support Agent
-         App URL: https://skincare-frontend-z72h.onrender.com
-[x] A4. Redirect URL:
-         https://skincare-api-68pp.onrender.com/api/auth/callback
-[x] A5. Scopes (current recommended):
-         read_products, read_orders, read_content
-         (read_customers removed until Protected Customer Data approved)
-[x] A6. Client ID -> SHOPIFY_API_KEY on Render
-[x] A7. Client secret -> SHOPIFY_API_SECRET on Render
+[x] Partner app created: Skincare AI Support Agent
+[x] App URL: https://skincare-frontend-z72h.onrender.com
+[x] Redirect: https://skincare-api-68pp.onrender.com/api/auth/callback
+[x] Scopes: read_products, read_orders, read_content
+[x] Dev store: glow-beauty-dev-dmf5uuka.myshopify.com
+
+Template: shopify.app.toml.example
 
 ================================================================================
-PHASE 5 — CONNECT STORE & SYNC (DETAILED STEPS)
+PHASE 5 — CONNECT STORE & SYNC
 ================================================================================
-[x] D1. Open /dashboard/settings
-[x] D2. Save ADMIN_API_KEY
-[x] D3. Enter shop domain -> Connect -> Install app on Shopify
-[x] D4. OAuth redirect back with connected=1
-[x] D5. Sync now -> products imported from live Shopify catalog
-[x] D6. Chat uses live product data
+[x] OAuth connect via Dashboard -> Settings
+[x] Product sync working (120 skincare products on Store ID 3)
+[ ] Optional: import glow-beauty-hair-care-import.csv (+55 hair products -> ~175 total)
+[x] Partial sync when customers API returns 403 (products still sync)
 
 ISSUE RESOLVED — 403 on customers.json:
-  Symptom: Sync failed with 403 Forbidden on customers API
-  Cause:   Shopify Protected Customer Data not approved for custom app
-  Fix:     Partial sync (products continue; customers/orders skipped with warning)
-  Commit:  12d2422
-  Result:  Product sync works; orders/customers optional until PCD approved
+  Fix: products continue; customers/orders skipped until PCD approval
+  Commit: 12d2422
 
 ================================================================================
-PHASE 6 — PRODUCTION BUG FIXES APPLIED
+PHASE 6 — CHAT ACCURACY & KNOWLEDGE (COMPLETED IN CODE)
 ================================================================================
-ISSUE: Chat not working / sample prompts did nothing
-  Cause:   Empty Render DB (SEED_DEMO_DATA=false) -> 404 Store not found
-           Frontend failed silently when /api/chat/start failed
-  Fix:     ensure_minimum_store() seeds demo data when DB empty
-           Chat UI shows errors, retry, starter prompts fill input box
-  Commit:  a662e3d
+[x] Concern-aware product recommendations (acne, dryness, aging, etc.)
+[x] Hair concern routing (hair fall, dandruff, frizz, curly, dry hair)
+[x] Ingredient compatibility answers + "Yes please" product follow-up
+[x] Chat learning from helpful feedback (RAG promotion)
+[x] Evidence-based knowledge guides in knowledge-base/
+[x] Customer-facing copy: "our store" / "we carry" (not "your catalog")
+[x] Dashboard: active nav, dynamic store name, analytics sidebar fix
 
-ISSUE: Render Postgres connection string format
-  Fix:     normalize postgresql:// -> postgresql+psycopg:// in session.py
+================================================================================
+PHASE 7 — STOREFRONT CHAT WIDGET (COMPLETED)
+================================================================================
+[x] Embeddable UI: /embed/chat?store_id=N
+[x] Theme snippet: integrations/shopify/glow-beauty-chat-widget.liquid
+[x] Chat passes store_id to API (per-merchant catalog)
+[x] Store lookup by shop domain: GET /api/shopify/store-info?shop=store.myshopify.com
+[x] Merchant onboarding guide: docs/SHOPIFY_STORE_OWNER_GUIDE.md
 
-ISSUE: Render PORT binding
-  Fix:     Dockerfile.prod uses ${PORT:-8000}
+INSTALL WIDGET ON SHOPIFY THEME:
+1. Edit theme.liquid -> paste snippet before </body>
+2. Set skincare_ai_store_id = merchant Store ID (3 for dev store)
+3. Preview theme -> click chat button -> test product questions
 
-ISSUE: pgvector not on Render free Postgres
-  Fix:     Graceful fallback; JSON embeddings still work
+TEST EMBED WITHOUT SHOPIFY:
+  https://skincare-frontend-z72h.onrender.com/embed/chat?store_id=3
+
+================================================================================
+PHASE 8 — BUILD FIX (Next.js 15 PRERENDER)
+================================================================================
+ISSUE: Frontend deploy failed on /chat and /embed/chat prerender
+  Error: useSearchParams() during static page generation
+
+FIX:
+  - chat-page-with-store.tsx wraps useSearchParams in React Suspense
+  - app/chat/page.tsx and app/embed/chat/page.tsx are server components
+
+After fix: npm run build succeeds; redeploy skincare-frontend on Render.
+
+================================================================================
+PHASE 9 — PRODUCT CATALOG CSVs
+================================================================================
+Skincare: knowledge-base/glow-beauty-products-import.csv (120 items, USD)
+Hair:     knowledge-base/glow-beauty-hair-care-import.csv (55 items, USD)
+
+Regenerate:
+  py -3 scripts/generate_product_csv.py
+  py -3 scripts/generate_hair_care_csv.py
+
+Import flow:
+1. Shopify Admin -> Settings -> Store currency = USD
+2. Products -> Import (each CSV)
+3. Dashboard -> Settings -> Store ID 3 -> Sync now
 
 ================================================================================
 WHAT TO DO NEXT (PRIORITY ORDER)
 ================================================================================
 
-PRIORITY 1 — IMPROVE CHAT ACCURACY (see section below)
-[ ] Upload knowledge docs at /dashboard/knowledge
-[ ] Tune OpenAI model env vars on Render (skincare-api)
-[ ] Re-sync products after adding more to Shopify store
+PRIORITY 1 — KNOWLEDGE BASE (HIGH IMPACT)
+[ ] Upload all files from knowledge-base/ to Store ID 3
+    (see knowledge-base/README.txt for order)
+[ ] Include hair-care-guide.txt if hair products imported
+[ ] Test prompts listed in knowledge-base/README.txt
 
-PRIORITY 2 — KNOWLEDGE BASE
-[ ] Upload shipping policy (.txt or .pdf)
-[ ] Upload return/refund policy
-[ ] Upload ingredient FAQ / product usage guides
-[ ] Test chat: "Do you ship internationally?", "Can I use Niacinamide with Vitamin C?"
+PRIORITY 2 — STOREFRONT WIDGET ON DEV STORE
+[ ] Paste integrations/shopify/glow-beauty-chat-widget.liquid into theme.liquid
+[ ] Set store_id=3, preview theme, test chat on storefront
+[ ] Publish theme when satisfied
 
-PRIORITY 3 — ORDER SUPPORT (OPTIONAL)
-[ ] Partner Dashboard -> App -> Protected customer data -> Request access
-[ ] Add read_customers scope back after approval
-[ ] Reconnect store (Settings -> Connect) to refresh token/scopes
-[ ] Sync again — orders and customers should import
+PRIORITY 3 — HAIR CARE CATALOG (OPTIONAL)
+[ ] Import glow-beauty-hair-care-import.csv
+[ ] Sync now -> verify ~175 products on Dashboard -> Products
 
 PRIORITY 4 — OPERATIONS
-[ ] Schedule sync every 6 hours:
-      $env:API_URL="https://skincare-api-68pp.onrender.com"
-      $env:ADMIN_API_KEY="your-key"
-      .\scripts\production_sync.ps1
+[ ] Confirm DEMO_STORE_ID=3 and NEXT_PUBLIC_DEMO_STORE_ID=3 on Render
+[ ] Schedule sync: scripts/production_sync.ps1 or .sh
 [ ] Set OpenAI usage limits at platform.openai.com
 [ ] Plan Postgres upgrade before 30-day free DB expiry
 
-PRIORITY 5 — PRODUCTION HARDENING (LATER)
-[ ] Custom domain (app.yourdomain.com, api.yourdomain.com)
-[ ] Upgrade Render to Starter plan (no cold starts)
-[ ] Error monitoring (Sentry)
-[ ] Shopify App Store listing for real merchants
+PRIORITY 5 — MERCHANT ONBOARDING (WHEN SELLING)
+[ ] Share docs/SHOPIFY_STORE_OWNER_GUIDE.md with store owners
+[ ] Per merchant: OAuth connect -> note Store ID -> send widget snippet
+[ ] Set up manual billing (Stripe/bKash) until Shopify Billing API added
+
+PRIORITY 6 — PRODUCTION HARDENING (LATER)
+[ ] Shopify Protected Customer Data for full order/customer sync
+[ ] Shopify theme app extension (one-click widget, no Liquid paste)
+[ ] Shopify App Store listing + Managed Pricing
+[ ] Custom domain + paid Render tier (faster cold starts)
+[ ] Lock down /api/conversations with admin auth
 
 ================================================================================
-HOW TO IMPROVE MODEL ACCURACY & CHAT PERFORMANCE
+RENDER ENV QUICK REFERENCE
 ================================================================================
+Full copy-paste list: render-env-values.txt
 
-A. OPENAI MODEL SETTINGS (Render -> skincare-api -> Environment)
-----------------------------------------------------------------
-Highest impact changes:
-
-1) OPENAI_CHAT_MODEL=gpt-4o
-   Best quality for product recommendations and skincare advice.
-   Already set in render.yaml. Confirm it is active on Render.
-
-2) OPENAI_INTENT_MODEL=gpt-4o-mini
-   Keeps intent routing fast and cheap while chat uses gpt-4o.
-
-3) OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-   Good balance of quality and cost for RAG search.
-
-After changing env vars on skincare-api -> Save (auto redeploys).
-
-B. UPLOAD KNOWLEDGE DOCUMENTS (HIGH IMPACT)
--------------------------------------------
-Chat accuracy for policies and ingredients depends on your docs.
-Go to /dashboard/knowledge and upload:
-  - shipping-policy.txt
-  - return-refund-policy.txt
-  - ingredient-faq.txt
-  - product usage guides per category
-
-More detailed docs = better RAG answers with source grounding.
-
-C. KEEP SHOPIFY CATALOG CURRENT
----------------------------------
-Run Sync now after adding/editing products in Shopify.
-Or schedule scripts/production_sync.ps1 every 6 hours.
-Product embeddings re-index automatically after sync.
-
-D. RAG TUNING (Render -> skincare-api Environment)
---------------------------------------------------
-  RAG_TOP_K=5          Number of knowledge chunks retrieved (try 6-8)
-  RAG_MIN_SCORE=0.12   Min similarity threshold (lower=more recall, higher=precision)
-  PRODUCT_TOP_K=5      Products passed to AI (try 6-8)
-  CHAT_HISTORY_LIMIT=12 Messages remembered (try 16 for longer consultations)
-
-E. PROMPT TESTING CHECKLIST
----------------------------
-Test these after each change:
-  1. "I have oily, acne-prone skin. What moisturizer should I use?"
-  2. "Can I use Niacinamide with Vitamin C?"
-  3. "Build me a morning and night routine for sensitive skin."
-  4. "Do you ship internationally?"
-  5. "Compare your serums for dark spots."
-
-Good answers should:
-  - Only mention products from YOUR Shopify catalog
-  - Explain why each product fits
-  - Ask one follow-up when info is missing (not a long form)
-  - Refuse medical diagnosis politely
-
-F. PERFORMANCE (SPEED, NOT ACCURACY)
-------------------------------------
-Free tier Render:
-  - First request after idle: 30-60 seconds (cold start)
-  - Fix: upgrade skincare-api to Starter ($7/mo) for always-on
-
-OpenAI latency:
-  - gpt-4o is slower than gpt-4o-mini but more accurate
-  - Use gpt-4o-mini for OPENAI_CHAT_MODEL only if speed > quality
-
-Database:
-  - Free Postgres on Render may add latency under load
-  - Upgrade DB before 30-day expiry
-
-G. WHAT NOT TO DO
------------------
-  - Do not set OPENAI_API_KEY in frontend (backend only)
-  - Do not use localhost URLs in production env vars
-  - Do not skip frontend redeploy after changing NEXT_PUBLIC_*
-  - Do not expect order lookup until orders sync (PCD approval)
-
-================================================================================
-RENDER ENV QUICK REFERENCE (YOUR DEPLOYMENT)
-================================================================================
-
-skincare-api:
+skincare-api (required):
   BACKEND_PUBLIC_URL=https://skincare-api-68pp.onrender.com
   FRONTEND_PUBLIC_URL=https://skincare-frontend-z72h.onrender.com
   CORS_ORIGINS=https://skincare-frontend-z72h.onrender.com
-  SHOPIFY_APP_URL=https://skincare-frontend-z72h.onrender.com
+  DEMO_STORE_ID=3
+  CHAT_AUTO_LEARN_ON_FEEDBACK=true
   OPENAI_CHAT_MODEL=gpt-4o
-  OPENAI_INTENT_MODEL=gpt-4o-mini
-  OPENAI_EMBEDDING_MODEL=text-embedding-3-small
   SEED_DEMO_DATA=false
-  ENVIRONMENT=production
 
-skincare-frontend:
+skincare-frontend (required):
   NEXT_PUBLIC_API_URL=https://skincare-api-68pp.onrender.com
-  NEXT_PUBLIC_SHOPIFY_APP_URL=https://skincare-frontend-z72h.onrender.com
+  NEXT_PUBLIC_DEMO_STORE_ID=3
+  NEXT_PUBLIC_STORE_NAME=Glow Beauty Co.
 
 ================================================================================
 TROUBLESHOOTING REFERENCE
 ================================================================================
 
+Frontend build fails on /chat or /embed/chat:
+  -> Ensure chat-page-with-store.tsx uses Suspense (Phase 8 fix)
+  -> Redeploy skincare-frontend
+
 Chat not loading:
   -> Check NEXT_PUBLIC_API_URL, redeploy frontend
 
 Chat 404 Store not found:
-  -> Fixed in a662e3d; redeploy skincare-api
+  -> Set DEMO_STORE_ID=3 on API; confirm store connected in Settings
+
+Chat shows demo products (8 items):
+  -> Wrong store_id; use ?store_id=3 or set DEMO_STORE_ID=3
+
+Widget shows wrong catalog:
+  -> Fix skincare_ai_store_id in theme Liquid snippet
 
 Sync 403 customers:
-  -> Fixed in 12d2422; products still sync; PCD approval for full sync
+  -> Expected without PCD approval; products still sync
 
 OAuth redirect mismatch:
-  -> Redirect must be https://skincare-api-68pp.onrender.com/api/auth/callback
+  -> Must be https://skincare-api-68pp.onrender.com/api/auth/callback
 
 Slow first message:
-  -> Free tier cold start; wait 60s or upgrade plan
+  -> Free tier cold start (~30-60s); upgrade Render plan
+
+Dashboard shows Store ID 1 demo products:
+  -> Switch to Store ID 3 on Products page
 
 ================================================================================
 CURRENT STATUS
 ================================================================================
-DEPLOYMENT:    COMPLETE AND WORKING
-SHOPIFY:       CONNECTED, PRODUCTS SYNCING
-CHAT:          WORKING ON PRODUCTION
-NEXT FOCUS:    Knowledge upload + model tuning (see above)
+DEPLOYMENT:     COMPLETE AND WORKING
+SHOPIFY:        CONNECTED (Store ID 3, 120+ products)
+CHAT:           WORKING (full page + embed)
+STOREFRONT:     WIDGET SNIPPET READY FOR THEME INSTALL
+NEXT FOCUS:     Knowledge upload + widget on live theme + optional hair CSV
 ================================================================================

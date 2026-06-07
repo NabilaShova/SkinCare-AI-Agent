@@ -158,16 +158,7 @@ IMAGES = [
     "https://burst.shopifycdn.com/photos/flatlay-of-skincare-products.jpg?width=1000",
 ]
 
-# Base USD reference prices in PRODUCTS are converted to BDT for Shopify import.
-BDT_PER_USD = 110
-CURRENCY_LABEL = "BDT"
-
-
-def usd_to_bdt(usd: float) -> float:
-    raw = usd * BDT_PER_USD
-    if raw < 2000:
-        return float(int(round(raw / 50.0) * 50))
-    return float(int(round(raw / 100.0) * 100))
+CURRENCY_LABEL = "USD"
 
 
 def main() -> None:
@@ -181,9 +172,7 @@ def main() -> None:
     for index, (title, vendor, ptype, tags, desc, ingredients, price, compare, size) in enumerate(PRODUCTS, 1):
         handle_slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
         sku = f"GB-{index:04d}"
-        bdt_price = usd_to_bdt(price)
-        bdt_compare = usd_to_bdt(compare)
-        bdt_cost = usd_to_bdt(price * 0.45)
+        cost = round(price * 0.45, 2)
         full_desc = (
             f"{desc} Key ingredients: {ingredients}. Size: {size}. "
             f"Price listed in {CURRENCY_LABEL}. "
@@ -199,15 +188,15 @@ def main() -> None:
                 "Vendor": vendor,
                 "Product category": category,
                 "Type": ptype,
-                "Tags": f"{tags}, bdt-pricing",
+                "Tags": f"{tags}, usd-pricing",
                 "Published on online store": "TRUE",
                 "Status": "active",
                 "SKU": sku,
                 "Option1 name": "Size",
                 "Option1 value": size,
-                "Price": f"{bdt_price:.2f}",
-                "Compare-at price": f"{bdt_compare:.2f}",
-                "Cost per item": f"{bdt_cost:.2f}",
+                "Price": f"{price:.2f}",
+                "Compare-at price": f"{compare:.2f}",
+                "Cost per item": f"{cost:.2f}",
                 "Charge tax": "TRUE",
                 "Inventory tracker": "shopify",
                 "Inventory quantity": str(40 + (index % 35)),
@@ -241,7 +230,7 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(rows)
 
-    print(f"Wrote {len(rows)} products to {OUT} ({CURRENCY_LABEL}, rate {BDT_PER_USD} per USD)")
+    print(f"Wrote {len(rows)} products to {OUT} ({CURRENCY_LABEL})")
 
 
 if __name__ == "__main__":
