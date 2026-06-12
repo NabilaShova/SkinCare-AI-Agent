@@ -147,6 +147,26 @@ def init_database() -> None:
             # Render managed Postgres may not include pgvector; JSON embeddings still work.
             pass
     Base.metadata.create_all(bind=engine)
+    _apply_additive_migrations()
+
+
+def _apply_additive_migrations() -> None:
+    """Idempotent column additions so existing databases gain new fields.
+
+    create_all() never alters existing tables, so new columns must be added
+    explicitly. These are safe to run on every startup.
+    """
+    statements = [
+        "ALTER TABLE stores ADD COLUMN IF NOT EXISTS site_type VARCHAR(32) DEFAULT 'shopify'",
+        "ALTER TABLE stores ADD COLUMN IF NOT EXISTS website_url VARCHAR(512)",
+    ]
+    with engine.begin() as connection:
+        for statement in statements:
+            try:
+                connection.execute(text(statement))
+            except Exception:
+                # Non-Postgres backends or already-applied changes can be ignored.
+                pass
 
 
 def seed_demo_data(db: Session) -> None:

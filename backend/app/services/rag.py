@@ -417,6 +417,26 @@ def index_product_embeddings(db: Session, store_id: int) -> None:
         )
 
 
+def remove_product_embeddings(db: Session, store_id: int, product_id: int | None = None) -> None:
+    """Delete product embedding records so they can be re-indexed fresh.
+
+    Pass a product_id to clear a single product, or omit it to clear all
+    product embeddings for the store. Document embeddings are never touched.
+    """
+    records = (
+        db.query(EmbeddingRecord)
+        .filter(EmbeddingRecord.store_id == store_id)
+        .all()
+    )
+    for record in records:
+        meta = record.meta or {}
+        if meta.get("type") != "product":
+            continue
+        if product_id is not None and meta.get("product_id") != product_id:
+            continue
+        db.delete(record)
+
+
 POLICY_SOURCE_HINTS: dict[str, list[str]] = {
     "ship": ["shipping"],
     "shipping": ["shipping"],

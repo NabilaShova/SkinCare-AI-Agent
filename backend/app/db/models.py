@@ -9,10 +9,17 @@ class Store(Base):
     __tablename__ = "stores"
 
     id = Column(Integer, primary_key=True, index=True)
+    # For Shopify stores this is the *.myshopify.com domain. For regular
+    # (non-Shopify) websites it stores a unique site key (e.g. the website host).
     shopify_domain = Column(String(255), unique=True, index=True, nullable=False)
+    # Shopify OAuth token. Regular websites use a placeholder ("web-no-token").
     access_token = Column(String(1024), nullable=False)
     name = Column(String(255), nullable=True)
     scopes = Column(String(1024), nullable=True)
+    # "shopify" (default) or "web" for regular websites hosted on any domain.
+    site_type = Column(String(32), default="shopify", nullable=True)
+    # Public URL of a regular website tenant (optional, web sites only).
+    website_url = Column(String(512), nullable=True)
     last_synced_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

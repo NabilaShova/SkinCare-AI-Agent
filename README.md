@@ -50,11 +50,13 @@ Production-ready AI customer support SaaS for Shopify beauty and skincare mercha
 | `DEPLOYMENT_LOG.txt` | Full deployment history + ops checklist |
 | `render-env-values.txt` | Copy-paste Render environment variables |
 | `docs/SHOPIFY_STORE_OWNER_GUIDE.md` | Merchant subscription + widget integration |
+| `docs/WEBSITE_INTEGRATION_GUIDE.md` | Integrate the agent on any non-Shopify website |
 | `docs/MERCHANT_ONBOARDING_KIT.md` | Operator checklist, QA script, handoff template |
 | `docs/MERCHANT_WELCOME_EMAIL.txt` | Welcome email template for new merchants |
 | `docs/HAIR_PRODUCTS_SETUP.md` | Import 55 hair products + knowledge + test prompts |
 | `knowledge-base/README.txt` | Knowledge upload + product CSV import |
 | `integrations/shopify/README.txt` | Storefront widget install steps |
+| `integrations/web/README.txt` | Non-Shopify website widget install steps |
 
 ## Shopify storefront chat widget
 
@@ -133,6 +135,7 @@ SkinCare-AI-Agent/
 │   └── components/          # chat-panel, chat-page-with-store, side-nav
 ├── docs/                    # Merchant guides, onboarding kit, hair setup
 ├── integrations/shopify/    # Theme widget Liquid + README
+├── integrations/web/        # Non-Shopify website widget loader + README
 ├── knowledge-base/          # Policies, guides, product import CSVs (USD)
 ├── scripts/                 # CSV generators, production sync helpers
 ├── docker-compose.yml

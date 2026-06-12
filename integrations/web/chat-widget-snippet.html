@@ -1,0 +1,59 @@
+<!--
+  Skincare AI Agent — paste-in chat widget for ANY website (no Shopify needed).
+
+  OPTION A (recommended): one-line loader served from the AI app.
+  Paste just this before </body> and set data-store-id to your assigned ID:
+
+    <script
+      src="https://skincare-frontend-z72h.onrender.com/widget/chat-widget.js"
+      data-store-id="4"
+      data-accent="#ec4899"
+      data-title="Beauty Advisor"
+      defer
+    ></script>
+
+  OPTION B: self-contained snippet below (no external script file).
+  Replace STORE_ID (4) and APP_URL with your values, then paste before </body>.
+-->
+<div id="skincare-ai-chat-root" aria-live="polite">
+  <button
+    id="skincare-ai-chat-launcher"
+    type="button"
+    aria-label="Open beauty advisor chat"
+    aria-expanded="false"
+    style="position:fixed;right:20px;bottom:20px;z-index:99998;width:56px;height:56px;border:none;border-radius:9999px;background:linear-gradient(135deg,#ec4899,#db2777);color:#fff;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 12px 30px rgba(236,72,153,0.35);"
+  >
+    &#10022;
+  </button>
+
+  <div
+    id="skincare-ai-chat-panel"
+    hidden
+    style="position:fixed;right:20px;bottom:88px;z-index:99999;width:min(400px,calc(100vw - 32px));height:min(620px,calc(100vh - 120px));border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(15,23,42,0.35);background:#0f172a;"
+  >
+    <iframe
+      id="skincare-ai-chat-frame"
+      title="Beauty AI advisor"
+      src="https://skincare-frontend-z72h.onrender.com/embed/chat?store_id=4"
+      style="width:100%;height:100%;border:none;"
+      loading="lazy"
+    ></iframe>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var launcher = document.getElementById('skincare-ai-chat-launcher');
+    var panel = document.getElementById('skincare-ai-chat-panel');
+    if (!launcher || !panel) return;
+    function setOpen(open) {
+      panel.hidden = !open;
+      launcher.setAttribute('aria-expanded', open ? 'true' : 'false');
+      launcher.textContent = open ? '\u00d7' : '\u2726';
+    }
+    launcher.addEventListener('click', function () { setOpen(panel.hidden); });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !panel.hidden) setOpen(false);
+    });
+  })();
+</script>
