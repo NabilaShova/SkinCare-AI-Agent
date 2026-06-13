@@ -284,6 +284,109 @@ def detect_concerns(query: str, profile: dict[str, Any] | None = None) -> list[s
     return found
 
 
+def is_skin_type_only_message(message: str) -> bool:
+    """True when the customer is mostly supplying or changing skin type (e.g. 'dry skin')."""
+    lowered = message.lower().strip()
+    if not _message_mentions_skin_type(message):
+        return False
+    remainder = lowered
+    for skin_type in SKIN_TYPES:
+        remainder = re.sub(rf"\b{re.escape(skin_type)}\b", " ", remainder)
+    remainder = re.sub(
+        r"\b(skin|my|i have|i am|for|please|recommend|suggest|what about|its|it's|it is|"
+        r"show me|options|products|now|actually)\b",
+        " ",
+        remainder,
+    )
+    remainder = re.sub(r"[^\w\s]", " ", remainder)
+    return len(remainder.split()) <= 2
+
+
+def resolve_recommendation_concerns(
+    message: str,
+    profile: dict[str, Any] | None = None,
+    history: list[dict[str, str]] | None = None,
+) -> list[str]:
+    """Keep the original skincare concern when the user only replies with a skin type."""
+    profile = profile or {}
+    history = history or []
+    current = detect_concerns(message, profile)
+    if not is_skin_type_only_message(message):
+        return current if current else detect_concerns("", profile)
+
+    prior_concerns: list[str] = []
+    for item in reversed(history):
+        if item["role"] != "user":
+            continue
+        if is_skin_type_only_message(item["content"]):
+            continue
+        found = detect_concerns(item["content"], profile)
+        if found:
+            prior_concerns = found
+            break
+
+    stored: list[str] = []
+    for concern in profile.get("concerns", []):
+        mapped = PROFILE_CONCERN_MAP.get(str(concern).lower(), str(concern).lower())
+        if mapped in CONCERN_SIGNALS and mapped not in stored:
+            stored.append(mapped)
+
+    merged: list[str] = []
+    for concern in prior_concerns + stored:
+        if concern not in merged:
+            merged.append(concern)
+
+    if merged:
+        return merged
+
+    # Avoid "dry skin" / "oily skin" being treated as a new dryness/oil concern.
+    return [concern for concern in current if concern not in {"dryness"}] or current
+
+
+def _skin_type_score(product: Product, skin_type: str | None) -> float:
+    if not skin_type:
+        return 0.0
+
+    skin_type = skin_type.lower()
+    haystack = _product_haystack(product)
+    score = 0.0
+
+    hints = SKIN_TYPE_HINTS.get(skin_type, [])
+    score += sum(3.0 for hint in hints if hint in haystack)
+    if skin_type in haystack:
+        score += 4.0
+
+    for collection in product.collections or []:
+        coll = str(collection).lower()
+        if skin_type in coll:
+            score += 5.0
+        if skin_type == "oily" and any(term in coll for term in ("oily", "oil-control", "pore")):
+            score += 4.0
+        if skin_type == "dry" and any(term in coll for term in ("dry", "barrier", "hydrat")):
+            score += 4.0
+
+    mismatch_terms = {
+        "oily": ("very dry", "rich cream", "heavy cream", "ointment", "eczema-prone"),
+        "dry": ("oil-control", "oil control", "mattifying", "clarifying", "pore-minim"),
+    }
+    for term in mismatch_terms.get(skin_type, ()):
+        if term in haystack:
+            score -= 6.0
+
+    return score
+
+
+def _recommendation_score(
+    product: Product,
+    concerns: list[str],
+    profile: dict[str, Any] | None = None,
+) -> float:
+    score = _concern_score(product, concerns)
+    if profile:
+        score += _skin_type_score(product, profile.get("skin_type"))
+    return score
+
+
 def effective_profile_for_retrieval(message: str, profile: dict[str, Any] | None = None) -> dict[str, Any]:
     """Drop stale skin-type bias when the customer asks about a new concern without restating skin type."""
     profile = dict(profile or {})
@@ -779,6 +882,7 @@ def pick_products_for_concerns(
     products: list[Product],
     concerns: list[str],
     limit: int = 3,
+    profile: dict[str, Any] | None = None,
 ) -> list[Product]:
     if not products or not concerns:
         return products[:limit]
@@ -789,7 +893,11 @@ def pick_products_for_concerns(
     picks: list[Product] = []
     seen_ids: set[int] = set()
 
-    ranked = sorted(products, key=lambda product: _concern_score(product, concerns), reverse=True)
+    ranked = sorted(
+        products,
+        key=lambda product: _recommendation_score(product, concerns, profile),
+        reverse=True,
+    )
 
     for product_type in preferred_types:
         for product in ranked:
@@ -876,6 +984,7 @@ def search_products(
                 profile_bonus += 1.5
 
         concern_bonus = _concern_score(product, active_concerns)
+        skin_type_bonus = _skin_type_score(product, (profile or {}).get("skin_type"))
 
         type_bonus = 0.0
         if requested_types:
@@ -893,7 +1002,7 @@ def search_products(
                 elif amount >= 3500:
                     budget_bonus -= 2.0
 
-        return keyword_score + semantic_score + profile_bonus + concern_bonus + type_bonus + budget_bonus
+        return keyword_score + semantic_score + profile_bonus + concern_bonus + skin_type_bonus + type_bonus + budget_bonus
 
     ranked = sorted(products, key=score_product, reverse=True)
     if requested_types and enforce_product_type:

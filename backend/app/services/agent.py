@@ -22,12 +22,15 @@ from app.services.rag import (
     filter_policy_hits,
     filter_products_for_query,
     format_knowledge_context,
+    is_skin_type_only_message,
     pick_products_for_concerns,
+    resolve_recommendation_concerns,
     search_knowledge,
     search_products,
     _concern_score,
     _contains_phrase,
     _product_matches_type,
+    _skin_type_score,
 )
 
 Intent = Literal[
@@ -1474,7 +1477,7 @@ def _product_fallback_answer(
 
     retrieval_query = build_retrieval_query(state["user_message"], profile=profile, history=history)
     requested_types = detect_requested_product_types(retrieval_query)
-    concerns = detect_concerns(retrieval_query, profile)
+    concerns = resolve_recommendation_concerns(state["user_message"], profile, history)
     scoped = filter_products_for_query(products, retrieval_query)
     hair_topic = _is_hair_topic(state["user_message"], history, profile)
     if not hair_topic:
@@ -1505,7 +1508,13 @@ def _product_fallback_answer(
         return f"I can help with that. We carry options like: {names}. What is your skin type and main concern?"
 
     if concerns and not requested_types:
-        picks = pick_products_for_concerns(scoped, concerns, limit=3)
+        ranked_scoped = sorted(
+            scoped,
+            key=lambda product: _concern_score(product, concerns)
+            + (_skin_type_score(product, skin_type) if skin_type else 0.0),
+            reverse=True,
+        )
+        picks = pick_products_for_concerns(ranked_scoped, concerns, limit=3, profile=profile)
         primary = concerns[0]
         label = concern_label(primary)
         if primary in HAIR_CONCERN_KEYS:
@@ -1517,7 +1526,11 @@ def _product_fallback_answer(
             lines.append(offer)
             return " ".join(lines)
 
-        lines = [f"For {label}, I'd start with these from our store:"]
+        if skin_type and is_skin_type_only_message(state["user_message"]):
+            opener = f"For {label} on {skin_type} skin, I'd start with these from our store:"
+        else:
+            opener = f"For {label}, I'd start with these from our store:"
+        lines = [opener]
         for index, product in enumerate(picks, start=1):
             reason = _concern_product_reason(product, primary)
             link = format_product_markdown_link(store, product)
@@ -1741,6 +1754,13 @@ def _node_gather_context(
         }
 
     retrieval_query = build_retrieval_query(state["user_message"], profile=active_profile, history=history)
+    if is_skin_type_only_message(state["user_message"]):
+        follow_up_concerns = resolve_recommendation_concerns(
+            state["user_message"], active_profile, history
+        )
+        if follow_up_concerns:
+            concern_phrase = ", ".join(concern_label(concern) for concern in follow_up_concerns[:2])
+            retrieval_query = f"{retrieval_query}. {concern_phrase} serum sunscreen moisturizer"
     if ingredient_followup and prior_user_message:
         ingredient_query = " ".join(_ingredient_terms(mentioned_ingredients))
         retrieval_query = f"{prior_user_message}. {ingredient_query} serum treatment exfoliant products"
@@ -1769,7 +1789,7 @@ def _node_gather_context(
             retrieval_query = f"{retrieval_query}. morning night routine cleanser serum moisturizer sunscreen"
         product_limit = max(settings.PRODUCT_TOP_K, 15)
     elif state["intent"] == "product_recommendation":
-        product_limit = max(settings.PRODUCT_TOP_K, 8)
+        product_limit = max(settings.PRODUCT_TOP_K, settings.PRODUCT_SEARCH_LIMIT)
     products = search_products(
         db,
         retrieval_query,

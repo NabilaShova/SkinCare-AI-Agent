@@ -29,7 +29,8 @@ class Settings(BaseSettings):
     DEMO_STORE_ID: int = 1
     RAG_TOP_K: int = 5
     RAG_MIN_SCORE: float = 0.12
-    PRODUCT_TOP_K: int = 5
+    PRODUCT_TOP_K: int = 12
+    PRODUCT_SEARCH_LIMIT: int = 30
     CHAT_HISTORY_LIMIT: int = 12
     CHAT_AUTO_LEARN_ON_FEEDBACK: bool = True
 
