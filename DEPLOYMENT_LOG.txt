@@ -3,7 +3,7 @@ SKINCARE AI AGENT - PRODUCTION DEPLOYMENT LOG
 ================================================================================
 Project: AI Customer Support Agent for Shopify Beauty & Skincare Stores
 Started: 2026-06-06
-Last Updated: 2026-06-07
+Last Updated: 2026-06-07; local Docker/UI fixes documented 2026-06-04
 Repository: https://github.com/NabilaShova/SkinCare-AI-Agent
 ================================================================================
 
@@ -56,17 +56,57 @@ KEY GIT COMMITS (recent):
   4cb9a99  Ingredient pair answers + "Yes please" follow-up fix
   525016b  README 120-product update + chat "our store" voice
   (latest) Storefront embed widget, hair care CSV, hair concern routing
+  (2026-06-04) Local Docker reliability + Windows font fix (Tailwind 3.4, psycopg)
 
 ================================================================================
 PHASE 0 — LOCAL DEVELOPMENT (COMPLETED)
 ================================================================================
 [x] Next.js 15 frontend + FastAPI backend
-[x] Docker Compose (postgres + pgvector + api + frontend)
+[x] Docker Compose (pgvector/pgvector:pg15 + api + frontend)
 [x] LangGraph agent routing + RAG pipeline
 [x] Demo store seed (Store ID 1, 8 products)
 [x] Customer chat at /chat
 [x] Embeddable chat at /embed/chat?store_id=N
 [x] Admin dashboard (settings, products, knowledge, conversations, analytics)
+[x] Local Docker hardening (2026-06-04) — see Phase 10
+
+================================================================================
+PHASE 10 — LOCAL DOCKER & UI FIXES (2026-06-04)
+================================================================================
+ISSUE: Local stack hard to run on Windows; landing/dashboard text unreadable (symbol glyphs)
+
+ROOT CAUSES:
+  - docker-compose DATABASE_URL used psycopg2 while backend depends on psycopg v3
+  - Frontend bind mount hid image node_modules; npx pulled wrong Next version
+  - Tailwind CSS v4 PostCSS plugin incompatible with Next.js 15 dev build
+  - globals.css referenced "Inter" without loading it; broken Windows Inter -> Wingdings-like text
+
+FIXES APPLIED:
+[x] DATABASE_URL: postgresql+psycopg://... (matches backend pyproject.toml)
+[x] Postgres image: pgvector/pgvector:pg15 + healthcheck before backend start
+[x] Frontend named volume: frontend-node-modules (preserves npm install across bind mount)
+[x] Frontend Dockerfile: npm run dev -- -H 0.0.0.0
+[x] Frontend compose command: npm install --legacy-peer-deps on container start
+[x] Tailwind pinned to 3.4.17 (not v4 / @tailwindcss/postcss)
+[x] Removed obsolete experimental.appDir from next.config.mjs
+[x] System font stack in layout.tsx + globals.css (Segoe UI on Windows; no bare "Inter")
+[x] Root .env.example documents all docker compose ${VAR} substitutions
+
+LOCAL VERIFY (2026-06-04):
+[x] docker compose up --build -d — all 3 containers healthy
+[x] GET http://localhost:8000/health — OK
+[x] GET http://localhost:3000/ — landing readable (HTTP 200)
+[x] GET http://localhost:3000/dashboard — dashboard readable (HTTP 200)
+[x] POST /api/chat/message — works when OPENAI_API_KEY set
+
+LOCAL COMMANDS:
+  cp .env.example .env          # add OPENAI_API_KEY optional
+  docker compose up --build -d
+  docker compose logs -f frontend
+  docker compose restart frontend   # after frontend CSS/font changes
+  docker compose down -v            # reset DB (local only)
+
+See README.md "Quick Start (Docker — Local)" and Troubleshooting for symbol-font / Tailwind issues.
 
 ================================================================================
 PHASE 1 — OPENAI API KEY
@@ -247,6 +287,15 @@ skincare-frontend (required):
 TROUBLESHOOTING REFERENCE
 ================================================================================
 
+Landing/dashboard text shows symbols (Windows):
+  -> Fixed: system font stack, no bare "Inter" in CSS (Phase 10)
+  -> docker compose restart frontend; browser Ctrl+Shift+R
+
+Frontend 500 / missing styles in Docker:
+  -> Ensure frontend-node-modules volume in docker-compose.yml (Phase 10)
+  -> docker compose up --build -d
+  -> Do not upgrade to Tailwind v4 without @tailwindcss/postcss migration
+
 Frontend build fails on /chat or /embed/chat:
   -> Ensure chat-page-with-store.tsx uses Suspense (Phase 8 fix)
   -> Redeploy skincare-frontend
@@ -278,9 +327,10 @@ Dashboard shows Store ID 1 demo products:
 ================================================================================
 CURRENT STATUS
 ================================================================================
-DEPLOYMENT:     COMPLETE AND WORKING
+DEPLOYMENT:     COMPLETE AND WORKING (Render production)
+LOCAL DOCKER:   VERIFIED WORKING (2026-06-04, Windows + Docker Desktop)
 SHOPIFY:        CONNECTED (Store ID 3, 120+ products)
 CHAT:           WORKING (full page + embed)
 STOREFRONT:     WIDGET SNIPPET READY FOR THEME INSTALL
-NEXT FOCUS:     Hair CSV import + API redeploy + knowledge upload + merchant sales
+NEXT FOCUS:     Knowledge upload + merchant sales + optional hair catalog verify
 ================================================================================

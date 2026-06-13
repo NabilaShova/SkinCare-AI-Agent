@@ -6,7 +6,7 @@ Production-ready AI customer support SaaS for Shopify beauty and skincare mercha
 
 | Layer | Technologies |
 | --- | --- |
-| Frontend | Next.js 15, React, Tailwind CSS |
+| Frontend | Next.js 15, React, Tailwind CSS 3.4 |
 | Backend | Python FastAPI |
 | Database | PostgreSQL 15 + pgvector |
 | AI | OpenAI, LangChain, LangGraph, RAG |
@@ -47,7 +47,7 @@ Production-ready AI customer support SaaS for Shopify beauty and skincare mercha
 
 | Doc | Purpose |
 | --- | --- |
-| `DEPLOYMENT_LOG.txt` | Full deployment history + ops checklist |
+| `DEPLOYMENT_LOG.txt` | Full deployment history, local Docker fixes, ops checklist |
 | `render-env-values.txt` | Copy-paste Render environment variables |
 | `docs/SHOPIFY_STORE_OWNER_GUIDE.md` | Merchant subscription + widget integration |
 | `docs/WEBSITE_INTEGRATION_GUIDE.md` | Integrate the agent on any non-Shopify website |
@@ -147,34 +147,67 @@ SkinCare-AI-Agent/
 
 ## Quick Start (Docker — Local)
 
+**Recommended on Windows** when Python is not installed locally. Requires Docker Desktop.
+
 ### 1. Create environment file
+
+From the project root:
 
 ```bash
 cp .env.example .env
 ```
 
-Add your OpenAI key:
+Add your OpenAI key (optional for local UI; required for live AI chat):
 
 ```env
 OPENAI_API_KEY=sk-your-key-here
 ```
 
+Shopify OAuth keys can stay empty for local dashboard and demo chat testing.
+
+Optional: copy `frontend/.env.example` to `frontend/.env` if you run the frontend outside Docker.
+
 ### 2. Start the stack
 
 ```bash
-docker compose up --build
+docker compose up --build -d
+```
+
+Services:
+
+| Service | Image / build | Port |
+| --- | --- | --- |
+| postgres | `pgvector/pgvector:pg15` | 5432 |
+| backend | `./backend` (FastAPI + psycopg) | 8000 |
+| frontend | `./frontend` (Next.js 15 dev) | 3000 |
+
+The frontend container runs `npm install` on start and keeps `node_modules` in a named Docker volume so bind-mounting the source tree does not hide installed packages.
+
+View logs:
+
+```bash
+docker compose logs -f frontend
+docker compose logs -f backend
+```
+
+Stop:
+
+```bash
+docker compose down
 ```
 
 ### 3. Open the app
 
 | Page | URL |
 | --- | --- |
+| Landing | http://localhost:3000 |
 | Chat | http://localhost:3000/chat?store_id=1 |
 | Embed chat | http://localhost:3000/embed/chat?store_id=1 |
 | Dashboard | http://localhost:3000/dashboard |
 | API docs | http://localhost:8000/docs |
+| Health | http://localhost:8000/health |
 
-Locally, **Store ID `1`** has 8 seeded demo products.
+Locally, **Store ID `1`** has 8 seeded demo products (`SEED_DEMO_DATA=true`, `DEMO_STORE_ID=1` in root `.env`).
 
 ## Try These Prompts
 
@@ -256,20 +289,22 @@ uvicorn app.main:app --reload --port 8000
 
 ```bash
 cd frontend
-cp .env.example .env.local
+cp .env.example .env
 npm install --legacy-peer-deps
 npm run dev
 ```
 
-Postgres with pgvector required, or:
+Postgres with pgvector required, or start only the database via Docker:
 
 ```bash
 docker compose up postgres -d
 ```
 
+Set `DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/support_agent` in `backend/.env` when the DB runs in Docker.
+
 ## Environment Variables
 
-See `.env.example`, `backend/.env.example`, `frontend/.env.example`, and `render-env-values.txt`.
+See `.env.example` (project root for Docker Compose), `backend/.env.example`, `frontend/.env.example`, and `render-env-values.txt`.
 
 ### Production essentials (Render)
 
@@ -328,6 +363,8 @@ Share `docs/SHOPIFY_STORE_OWNER_GUIDE.md` with merchants. Summary:
 - Merchant integration guide (`docs/SHOPIFY_STORE_OWNER_GUIDE.md`)
 - Next.js 15 build fix (Suspense for `useSearchParams` on chat pages)
 - Hair care import CSV (55 products, USD)
+- Local Docker reliability fixes (psycopg driver, frontend `node_modules` volume, Tailwind 3.4)
+- Windows font fix — system font stack instead of unloaded `Inter` (symbol-glyph text bug)
 
 ### Recommended next steps
 
@@ -338,6 +375,33 @@ Share `docs/SHOPIFY_STORE_OWNER_GUIDE.md` with merchants. Summary:
 - Shopify theme app extension + App Store billing
 
 ## Troubleshooting
+
+### Landing page or dashboard text shows symbols / icons (Windows)
+
+CSS referenced **Inter** without loading it. Some Windows installs map that name to a symbol font (Wingdings-like glyphs).
+
+**Fix (already in repo):** the app uses a system font stack (`Segoe UI` on Windows) via `font-sans` in `frontend/app/layout.tsx` — no bare `Inter` name in CSS.
+
+If you still see symbols after pulling latest code:
+
+```bash
+docker compose restart frontend
+```
+
+Then hard refresh the browser (**Ctrl+Shift+R**).
+
+### Frontend 500 or missing Tailwind styles in Docker
+
+Usually caused by an empty `node_modules` folder inside the bind-mounted frontend directory.
+
+**Fix:** ensure `docker-compose.yml` includes the `frontend-node-modules` named volume, then rebuild:
+
+```bash
+docker compose down
+docker compose up --build -d
+```
+
+Do not use Tailwind CSS v4 with this Next.js 15 setup — the project pins **Tailwind 3.4.17** (`@tailwindcss/postcss` is not used).
 
 ### Frontend build fails on `/chat` or `/embed/chat`
 
