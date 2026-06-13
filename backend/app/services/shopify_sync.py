@@ -63,6 +63,7 @@ def _upsert_product(db: Session, store_id: int, item: dict[str, Any], *, currenc
 
     payload = {
         "title": item.get("title", "Untitled Product"),
+        "handle": (item.get("handle") or "").strip() or None,
         "description": description,
         "ingredients": _extract_ingredients(description, item.get("tags")),
         "collections": [item.get("product_type")] if item.get("product_type") else [],

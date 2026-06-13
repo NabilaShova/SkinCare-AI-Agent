@@ -19,6 +19,7 @@ from app.services.rag import chunk_text, generate_embeddings, index_product_embe
 DEMO_PRODUCTS = [
     {
         "shopify_product_id": "gid://shopify/Product/1001",
+        "handle": "niacinamide-10-oil-control-serum",
         "title": "Niacinamide 10% Oil Control Serum",
         "description": "Lightweight serum that helps regulate excess oil, minimize pores, and calm redness. Ideal for oily and acne-prone skin.",
         "ingredients": "Niacinamide, Zinc PCA, Hyaluronic Acid, Panthenol",
@@ -28,6 +29,7 @@ DEMO_PRODUCTS = [
     },
     {
         "shopify_product_id": "gid://shopify/Product/1002",
+        "handle": "vitamin-c-15-brightening-serum",
         "title": "Vitamin C 15% Brightening Serum",
         "description": "Antioxidant serum that brightens dull skin and supports an even tone. Best used in the morning before sunscreen.",
         "ingredients": "L-Ascorbic Acid, Ferulic Acid, Vitamin E, Hyaluronic Acid",
@@ -37,6 +39,7 @@ DEMO_PRODUCTS = [
     },
     {
         "shopify_product_id": "gid://shopify/Product/1003",
+        "handle": "oil-free-hydrating-gel-moisturizer",
         "title": "Oil-Free Hydrating Gel Moisturizer",
         "description": "Non-comedogenic gel moisturizer that hydrates without heaviness. Suitable for oily, combination, and acne-prone skin.",
         "ingredients": "Hyaluronic Acid, Niacinamide, Aloe Vera, Squalane",
@@ -46,6 +49,7 @@ DEMO_PRODUCTS = [
     },
     {
         "shopify_product_id": "gid://shopify/Product/1004",
+        "handle": "gentle-foaming-cleanser",
         "title": "Gentle Foaming Cleanser",
         "description": "pH-balanced cleanser that removes makeup and impurities without stripping the skin barrier.",
         "ingredients": "Cocamidopropyl Betaine, Glycerin, Chamomile Extract",
@@ -55,6 +59,7 @@ DEMO_PRODUCTS = [
     },
     {
         "shopify_product_id": "gid://shopify/Product/1005",
+        "handle": "daily-spf-50-mineral-sunscreen",
         "title": "Daily SPF 50 Mineral Sunscreen",
         "description": "Broad-spectrum mineral sunscreen with a lightweight finish. Fragrance-free and suitable for sensitive skin.",
         "ingredients": "Zinc Oxide, Titanium Dioxide, Niacinamide, Squalane",
@@ -64,6 +69,7 @@ DEMO_PRODUCTS = [
     },
     {
         "shopify_product_id": "gid://shopify/Product/1006",
+        "handle": "retinol-0-3-night-renewal-cream",
         "title": "Retinol 0.3% Night Renewal Cream",
         "description": "Night treatment that supports smoother-looking skin and helps reduce the appearance of fine lines over time.",
         "ingredients": "Retinol, Peptides, Ceramides, Shea Butter",
@@ -73,6 +79,7 @@ DEMO_PRODUCTS = [
     },
     {
         "shopify_product_id": "gid://shopify/Product/1007",
+        "handle": "salicylic-acid-2-bha-exfoliant",
         "title": "Salicylic Acid 2% BHA Exfoliant",
         "description": "Leave-on exfoliant that helps clear clogged pores and smooth uneven texture for acne-prone skin.",
         "ingredients": "Salicylic Acid, Green Tea Extract, Allantoin",
@@ -82,6 +89,7 @@ DEMO_PRODUCTS = [
     },
     {
         "shopify_product_id": "gid://shopify/Product/1008",
+        "handle": "ceramide-barrier-repair-cream",
         "title": "Ceramide Barrier Repair Cream",
         "description": "Rich cream for dry and sensitive skin that supports barrier recovery and long-lasting hydration.",
         "ingredients": "Ceramides, Cholesterol, Fatty Acids, Panthenol",
@@ -159,6 +167,7 @@ def _apply_additive_migrations() -> None:
     statements = [
         "ALTER TABLE stores ADD COLUMN IF NOT EXISTS site_type VARCHAR(32) DEFAULT 'shopify'",
         "ALTER TABLE stores ADD COLUMN IF NOT EXISTS website_url VARCHAR(512)",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS handle VARCHAR(512)",
     ]
     with engine.begin() as connection:
         for statement in statements:

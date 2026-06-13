@@ -35,6 +35,7 @@ class Product(Base):
     id = Column(Integer, primary_key=True, index=True)
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
     shopify_product_id = Column(String(128), index=True, nullable=False)
+    handle = Column(String(512), nullable=True, index=True)
     title = Column(String(512), nullable=False)
     description = Column(Text)
     ingredients = Column(Text)

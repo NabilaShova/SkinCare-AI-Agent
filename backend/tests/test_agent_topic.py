@@ -45,28 +45,58 @@ class AgentTopicRoutingTests(unittest.TestCase):
 
 
 class DummyProduct:
-    def __init__(self, product_id: int, title: str, description: str = "", collections: list[str] | None = None):
+    def __init__(
+        self,
+        product_id: int,
+        title: str,
+        description: str = "",
+        collections: list[str] | None = None,
+        handle: str | None = None,
+    ):
         self.id = product_id
         self.title = title
         self.description = description
         self.ingredients = ""
         self.collections = collections or []
         self.price = "$24.00"
+        self.handle = handle
+
+
+class DummyStore:
+    def __init__(self, domain: str = "demo-glow-beauty.myshopify.com"):
+        self.shopify_domain = domain
+        self.site_type = "shopify"
+        self.website_url = None
 
 
 class SkincareRoutineFallbackTests(unittest.TestCase):
     def test_skincare_routine_not_hair_message(self) -> None:
         products = [
-            DummyProduct(1, "Gentle Cream Cleanser", collections=["Cleansers", "Sensitive Skin"]),
-            DummyProduct(2, "Hydrating Barrier Serum", collections=["Serums", "Dry Skin"]),
-            DummyProduct(3, "Rich Ceramide Moisturizer", collections=["Moisturizers", "Dry Skin"]),
-            DummyProduct(4, "Mineral SPF 50", collections=["Sunscreen", "Sensitive Skin"]),
+            DummyProduct(1, "Gentle Cream Cleanser", collections=["Cleansers", "Sensitive Skin"], handle="gentle-cream-cleanser"),
+            DummyProduct(2, "Hydrating Barrier Serum", collections=["Serums", "Dry Skin"], handle="hydrating-barrier-serum"),
+            DummyProduct(3, "Rich Ceramide Moisturizer", collections=["Moisturizers", "Dry Skin"], handle="rich-ceramide-moisturizer"),
+            DummyProduct(4, "Mineral SPF 50", collections=["Sunscreen", "Sensitive Skin"], handle="mineral-spf-50"),
         ]
         message = "I have dry sensitive skin — suggest a simple morning routine."
-        reply = _routine_fallback_answer(products, {}, message, [])
+        store = DummyStore()
+        reply = _routine_fallback_answer(products, {}, message, [], store)
         self.assertNotIn("hair care routine", reply.lower())
         self.assertIn("morning", reply.lower())
         self.assertIn("cleanser", reply.lower())
+        self.assertIn("$24.00", reply)
+        self.assertIn("](https://demo-glow-beauty.myshopify.com/products/gentle-cream-cleanser)", reply)
+
+    def test_skincare_routine_excludes_product_sets(self) -> None:
+        products = [
+            DummyProduct(1, "Hydrating Facial Cleanser", collections=["Cleansers"]),
+            DummyProduct(2, "Dry Skin Barrier Repair Set", collections=["Serums", "Sets"]),
+            DummyProduct(3, "Hyaluronic Hydrating Serum", collections=["Serums", "Dry Skin"]),
+            DummyProduct(4, "Ceramide Barrier Repair Cream", collections=["Moisturizers"]),
+        ]
+        message = "I have dry sensitive skin — suggest a simple morning routine."
+        reply = _routine_fallback_answer(products, {}, message, [])
+        self.assertNotIn("Barrier Repair Set", reply)
+        self.assertIn("Hyaluronic Hydrating Serum", reply)
 
 
 if __name__ == "__main__":

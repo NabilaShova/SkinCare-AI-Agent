@@ -1,3 +1,5 @@
+import { Fragment } from 'react';
+
 interface ChatBubbleProps {
   role: 'user' | 'assistant' | 'system';
   message: string;
@@ -5,6 +7,48 @@ interface ChatBubbleProps {
   showFeedback?: boolean;
   onFeedback?: (messageId: number, helpful: boolean) => void;
   feedbackState?: 'idle' | 'sending' | 'helpful' | 'not_helpful';
+}
+
+const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+
+function renderMessageContent(message: string) {
+  const nodes: Array<string | JSX.Element> = [];
+  let lastIndex = 0;
+
+  for (const match of message.matchAll(MARKDOWN_LINK_PATTERN)) {
+    const [fullMatch, label, href] = match;
+    const index = match.index ?? 0;
+
+    if (index > lastIndex) {
+      nodes.push(message.slice(lastIndex, index));
+    }
+
+    nodes.push(
+      <a
+        key={`${index}-${href}`}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-pink-300 underline decoration-pink-400/60 underline-offset-2 transition hover:text-pink-200"
+      >
+        {label}
+      </a>,
+    );
+
+    lastIndex = index + fullMatch.length;
+  }
+
+  if (lastIndex < message.length) {
+    nodes.push(message.slice(lastIndex));
+  }
+
+  if (nodes.length === 0) {
+    return message;
+  }
+
+  return nodes.map((node, index) => (
+    <Fragment key={typeof node === 'string' ? `text-${index}` : `link-${index}`}>{node}</Fragment>
+  ));
 }
 
 export function ChatBubble({
@@ -26,7 +70,7 @@ export function ChatBubble({
         <p className="font-semibold uppercase tracking-[0.18em] text-[0.6rem] opacity-70">
           {role === 'assistant' ? 'AI Support' : 'Customer'}
         </p>
-        <p className="mt-3 whitespace-pre-wrap">{message}</p>
+        <p className="mt-3 whitespace-pre-wrap">{renderMessageContent(message)}</p>
         {showFeedback && messageId && onFeedback ? (
           <div className="mt-4 flex items-center gap-2 border-t border-slate-700/80 pt-3">
             <span className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">Helpful?</span>
