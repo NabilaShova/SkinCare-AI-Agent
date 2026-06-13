@@ -381,6 +381,156 @@ def _is_skincare_bundle(product: Product) -> bool:
     return bool(re.search(r"\b(set|kit|bundle|duo|trio)\b", title))
 
 
+NON_FACE_SKINCARE_MARKERS = (
+    "hand cream",
+    "hand repair",
+    "hand lotion",
+    "hand balm",
+    "for hands",
+    "cracked hands",
+    "foot cream",
+    " heel ",
+    "heel cream",
+    "for feet",
+    "body lotion",
+    "body cream",
+    "body butter",
+    "body moistur",
+    "body wash",
+    " lip balm",
+    " lip mask",
+    "lip care",
+    "lip treatment",
+)
+
+NON_FACE_COLLECTION_MARKERS = (
+    "body care",
+    "body moistur",
+    "hand care",
+    "foot care",
+    "lip care",
+    "body wash",
+)
+
+FACE_MOISTURIZER_MARKERS = (
+    "moisturizer",
+    "moistur",
+    "face cream",
+    "facial",
+    "barrier repair cream",
+    "barrier cream",
+    "night cream",
+    "day cream",
+    "gel moisturizer",
+    "hydrating gel",
+    "sleeping mask",
+)
+
+NIGHT_TREATMENT_SERUM_MARKERS = (
+    "retinol",
+    "retinal",
+    "retinoid",
+    "glycolic",
+    "lactic acid",
+    " salicylic",
+    " bha",
+    " aha",
+    "exfoliant",
+    "night renewal",
+    "night serum",
+    "peel",
+)
+
+MORNING_SERUM_BOOST_MARKERS = (
+    "vitamin c",
+    "ascorbic",
+    "niacinamide",
+    "antioxidant",
+    "brightening",
+)
+
+
+def _is_non_face_skincare_product(product: Product) -> bool:
+    haystack = _product_haystack(product)
+    title = product.title.lower()
+    if any(marker in haystack for marker in NON_FACE_SKINCARE_MARKERS):
+        return True
+    if re.search(r"\bhand\b", title):
+        return True
+    if re.search(r"\bfoot\b", title):
+        return True
+    for collection in product.collections or []:
+        coll = str(collection).lower()
+        if any(marker in coll for marker in NON_FACE_COLLECTION_MARKERS):
+            return True
+    return False
+
+
+def _is_face_moisturizer(product: Product) -> bool:
+    if _is_non_face_skincare_product(product) or _is_hair_product(product):
+        return False
+    if _product_matches_type(product, "eye care"):
+        return False
+    haystack = _product_haystack(product)
+    if any(marker in haystack for marker in FACE_MOISTURIZER_MARKERS):
+        return True
+    for collection in product.collections or []:
+        coll = str(collection).lower()
+        if "moistur" in coll and "body" not in coll:
+            return True
+    if "cream" in haystack and any(
+        term in haystack for term in ("face", "facial", "skin", "ceramide", "barrier", "hydrat")
+    ):
+        return True
+    return False
+
+
+def _is_night_treatment_serum(product: Product) -> bool:
+    haystack = _product_haystack(product)
+    return any(marker in haystack for marker in NIGHT_TREATMENT_SERUM_MARKERS)
+
+
+def _serum_score_for_routine(product: Product, concerns: list[str], *, morning: bool) -> float:
+    score = _concern_score(product, concerns)
+    haystack = _product_haystack(product)
+    if _is_non_face_skincare_product(product):
+        return score - 100.0
+    if morning:
+        if _is_night_treatment_serum(product):
+            score -= 50.0
+        if any(marker in haystack for marker in MORNING_SERUM_BOOST_MARKERS):
+            score += 10.0
+        if "hyaluronic" in haystack:
+            score += 5.0
+    else:
+        if _is_night_treatment_serum(product):
+            score += 15.0
+        if any(marker in haystack for marker in ("vitamin c", "ascorbic", "sunscreen", " spf")):
+            score -= 20.0
+    return score
+
+
+def _moisturizer_score_for_routine(product: Product, concerns: list[str], *, night: bool) -> float:
+    score = _concern_score(product, concerns)
+    if not _is_face_moisturizer(product):
+        return score - 100.0
+    haystack = _product_haystack(product)
+    if night and any(term in haystack for term in ("night", "retinol", "renewal", "repair cream", "rich")):
+        score += 8.0
+    elif not night and any(term in haystack for term in ("gel", "lightweight", "oil-free")):
+        score += 4.0
+    return score
+
+
+def _filter_face_skincare_products(products: list[Product]) -> list[Product]:
+    filtered = [
+        product
+        for product in products
+        if not _is_non_face_skincare_product(product) and not _is_hair_product(product)
+    ]
+    return filtered or products
+
+
 def _is_skincare_routine_product(product: Product) -> bool:
     if _is_hair_product(product) or _is_skincare_bundle(product):
         return False
@@ -388,6 +538,8 @@ def _is_skincare_routine_product(product: Product) -> bool:
 
 
 def _classify_skincare_routine_slot(product: Product) -> str | None:
+    if _is_non_face_skincare_product(product):
+        return None
     title = product.title.lower()
     haystack = _product_haystack(product)
     is_serum_like = _product_matches_type(product, "serum") and not _product_matches_type(product, "eye care")
@@ -400,7 +552,7 @@ def _classify_skincare_routine_slot(product: Product) -> str | None:
         return "cleanser"
     if is_serum_like:
         return "serum"
-    if _product_matches_type(product, "moisturizer"):
+    if _is_face_moisturizer(product):
         return "moisturizer"
     return None
 
@@ -967,23 +1119,91 @@ def _pick_skincare_routine_products(
         if slot and _is_skincare_routine_product(product):
             slot_candidates[slot].append(product)
 
-    slots: dict[str, Product | None] = {
-        "cleanser": None,
-        "serum": None,
-        "moisturizer": None,
-        "sunscreen": None,
+    def rank_candidates(
+        candidates: list[Product],
+        scorer: Any,
+    ) -> list[Product]:
+        return sorted(candidates, key=scorer, reverse=True)
+
+    cleanser_ranked = rank_candidates(
+        slot_candidates["cleanser"],
+        lambda product: _concern_score(product, concerns),
+    )
+    cleanser = cleanser_ranked[0] if cleanser_ranked else None
+
+    face_moisturizers = [product for product in slot_candidates["moisturizer"] if _is_face_moisturizer(product)]
+    day_moisturizers = rank_candidates(
+        face_moisturizers,
+        lambda product: _moisturizer_score_for_routine(product, concerns, night=False),
+    )
+    night_moisturizers = rank_candidates(
+        face_moisturizers,
+        lambda product: _moisturizer_score_for_routine(product, concerns, night=True),
+    )
+    day_moisturizer = day_moisturizers[0] if day_moisturizers else None
+    night_moisturizer = None
+    for candidate in night_moisturizers:
+        if day_moisturizer and candidate.id == day_moisturizer.id:
+            continue
+        haystack = _product_haystack(candidate)
+        if any(term in haystack for term in ("night", "retinol", "renewal", "repair cream", "rich")):
+            night_moisturizer = candidate
+            break
+
+    serums = slot_candidates["serum"]
+    morning_serum_ranked = rank_candidates(
+        serums,
+        lambda product: _serum_score_for_routine(product, concerns, morning=True),
+    )
+    night_serum_ranked = rank_candidates(
+        serums,
+        lambda product: _serum_score_for_routine(product, concerns, morning=False),
+    )
+    morning_serum = morning_serum_ranked[0] if morning_serum_ranked else None
+    night_serum = None
+    for candidate in night_serum_ranked:
+        if _is_night_treatment_serum(candidate):
+            night_serum = candidate
+            break
+    if not night_serum:
+        for candidate in night_serum_ranked:
+            if morning_serum and candidate.id == morning_serum.id:
+                continue
+            night_serum = candidate
+            break
+
+    sunscreen_ranked = rank_candidates(
+        slot_candidates["sunscreen"],
+        lambda product: _concern_score(product, concerns),
+    )
+    sunscreen = sunscreen_ranked[0] if sunscreen_ranked else None
+
+    return {
+        "cleanser": cleanser,
+        "moisturizer": day_moisturizer,
+        "night_moisturizer": night_moisturizer,
+        "morning_serum": morning_serum,
+        "night_serum": night_serum,
+        "sunscreen": sunscreen,
     }
-    used_ids: set[int] = set()
-    for slot_name in ("cleanser", "serum", "moisturizer", "sunscreen"):
-        ranked = sorted(
-            [product for product in slot_candidates[slot_name] if product.id not in used_ids],
-            key=lambda product: _concern_score(product, concerns),
-            reverse=True,
-        )
-        if ranked:
-            slots[slot_name] = ranked[0]
-            used_ids.add(ranked[0].id)
-    return slots
+
+
+def _append_routine_steps(
+    lines: list[str],
+    section_title: str,
+    steps: list[tuple[str, Product]],
+    store: Store | None,
+    *,
+    start_step: int = 1,
+) -> int:
+    if not steps:
+        return start_step
+    lines.append(section_title)
+    step = start_step
+    for label, product in steps:
+        lines.append(_format_routine_step(step, label, product, store))
+        step += 1
+    return step
 
 
 def _pick_hair_routine_products(
@@ -1021,7 +1241,7 @@ def _skincare_routine_fallback_answer(
     history = history or []
     query = _topic_context_from_user_turn(message, history, profile)
     concerns = detect_concerns(query, profile)
-    slots = _pick_skincare_routine_products(products, profile, concerns)
+    picks = _pick_skincare_routine_products(products, profile, concerns)
     skin = profile.get("skin_type")
     wants_morning = "morning" in message.lower() or "am routine" in message.lower()
     wants_night = "night" in message.lower() or "evening" in message.lower() or "pm routine" in message.lower()
@@ -1034,44 +1254,61 @@ def _skincare_routine_fallback_answer(
         opener = "Here is a simple skincare routine using products we carry:"
 
     lines = [opener]
-    morning = []
-    step = 1
-    if slots["cleanser"]:
-        morning.append(_format_routine_step(step, "Cleanser", slots["cleanser"], store))
-        step += 1
-    if slots["serum"]:
-        morning.append(_format_routine_step(step, "Serum", slots["serum"], store))
-        step += 1
-    if slots["moisturizer"]:
-        morning.append(_format_routine_step(step, "Moisturizer", slots["moisturizer"], store))
-        step += 1
-    if slots["sunscreen"]:
-        morning.append(_format_routine_step(step, "Sunscreen", slots["sunscreen"], store))
-    night = []
-    step = 1
-    if slots["cleanser"]:
-        night.append(_format_routine_step(step, "Cleanser", slots["cleanser"], store))
-        step += 1
-    if slots["serum"]:
-        night.append(_format_routine_step(step, "Treatment serum", slots["serum"], store))
-        step += 1
-    if slots["moisturizer"]:
-        night.append(_format_routine_step(step, "Moisturizer", slots["moisturizer"], store))
+
+    morning_only_steps: list[tuple[str, Product]] = []
+    if picks["morning_serum"]:
+        morning_only_steps.append(("Serum", picks["morning_serum"]))
+    if picks["sunscreen"]:
+        morning_only_steps.append(("Sunscreen", picks["sunscreen"]))
+
+    night_only_steps: list[tuple[str, Product]] = []
+    morning_serum = picks["morning_serum"]
+    night_serum = picks["night_serum"]
+    if night_serum and (not morning_serum or night_serum.id != morning_serum.id):
+        night_only_steps.append(("Treatment serum", night_serum))
+    day_moisturizer = picks["moisturizer"]
+    night_moisturizer = picks["night_moisturizer"]
+    if night_moisturizer and day_moisturizer and night_moisturizer.id != day_moisturizer.id:
+        night_only_steps.append(("Night moisturizer", night_moisturizer))
+
+    daily_steps: list[tuple[str, Product]] = []
+    if picks["cleanser"]:
+        daily_steps.append(("Cleanser", picks["cleanser"]))
+    if day_moisturizer:
+        daily_steps.append(("Moisturizer", day_moisturizer))
+
     if wants_morning and not wants_night:
-        if morning:
-            lines.append("Morning:")
-            lines.extend(morning)
+        morning_steps: list[tuple[str, Product]] = []
+        if picks["cleanser"]:
+            morning_steps.append(("Cleanser", picks["cleanser"]))
+        if picks["morning_serum"]:
+            morning_steps.append(("Serum", picks["morning_serum"]))
+        if day_moisturizer:
+            morning_steps.append(("Moisturizer", day_moisturizer))
+        if picks["sunscreen"]:
+            morning_steps.append(("Sunscreen", picks["sunscreen"]))
+        _append_routine_steps(lines, "Morning:", morning_steps, store)
     elif wants_night and not wants_morning:
-        if night:
-            lines.append("Night:")
-            lines.extend(night)
+        night_steps: list[tuple[str, Product]] = []
+        if picks["cleanser"]:
+            night_steps.append(("Cleanser", picks["cleanser"]))
+        if night_serum and (not morning_serum or night_serum.id != morning_serum.id):
+            night_steps.append(("Treatment serum", night_serum))
+        elif night_serum:
+            night_steps.append(("Serum", night_serum))
+        if night_moisturizer:
+            night_steps.append(("Moisturizer", night_moisturizer))
+        elif day_moisturizer:
+            night_steps.append(("Moisturizer", day_moisturizer))
+        _append_routine_steps(lines, "Night:", night_steps, store)
     else:
-        if morning:
-            lines.append("Morning:")
-            lines.extend(morning)
-        if night:
-            lines.append("Night:")
-            lines.extend(night)
+        _append_routine_steps(lines, "Every day (morning & night):", daily_steps, store)
+        _append_routine_steps(lines, "Morning only:", morning_only_steps, store)
+        if night_only_steps:
+            _append_routine_steps(lines, "Night only:", night_only_steps, store)
+        elif daily_steps:
+            lines.append("Night: repeat the cleanser and moisturizer above. Skip sunscreen.")
+
     if len(lines) == 1:
         return (
             "I can build a skincare routine once we have a cleanser, serum, moisturizer, "
@@ -1240,6 +1477,8 @@ def _product_fallback_answer(
     concerns = detect_concerns(retrieval_query, profile)
     scoped = filter_products_for_query(products, retrieval_query)
     hair_topic = _is_hair_topic(state["user_message"], history, profile)
+    if not hair_topic:
+        scoped = _filter_face_skincare_products(scoped)
 
     if not scoped:
         if hair_topic:
@@ -1539,6 +1778,12 @@ def _node_gather_context(
         limit=product_limit,
         enforce_product_type=not building_routine,
     )
+    skincare_context = routine_domain == "skin" or (
+        state["intent"] == "product_recommendation"
+        and not _is_hair_topic(state["user_message"], history, active_profile)
+    )
+    if skincare_context:
+        products = _filter_face_skincare_products(products)
     policy_topic = detect_policy_topic(state["user_message"]) if state["intent"] == "policy_faq" else None
     knowledge_hits = search_knowledge(
         db,
