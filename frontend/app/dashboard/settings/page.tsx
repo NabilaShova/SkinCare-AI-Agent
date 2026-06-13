@@ -18,6 +18,7 @@ export default function SettingsPage() {
   const [storeId, setStoreId] = useState(() => getDashboardStoreId());
   const [stores, setStores] = useState<StoreItem[]>([]);
   const [status, setStatus] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
@@ -38,11 +39,20 @@ export default function SettingsPage() {
 
   useEffect(() => {
     async function loadStores() {
+      setLoadError('');
       try {
         const data = await fetcher('/auth/status');
         setStores(data.stores ?? []);
-      } catch {
+      } catch (error) {
         setStores([]);
+        const message = error instanceof Error ? error.message : 'Could not load connected stores.';
+        if (message.includes('Invalid admin API key') || message.includes('401')) {
+          setLoadError(
+            'Invalid admin API key. Paste the exact ADMIN_API_KEY from Render (skincare-api → Environment), click Save, then reload this page.'
+          );
+        } else {
+          setLoadError(message);
+        }
       }
     }
     if (getAdminApiKey()) {
@@ -51,8 +61,9 @@ export default function SettingsPage() {
   }, [status]);
 
   const saveAdminKey = () => {
-    setAdminApiKey(adminKey);
+    setAdminApiKey(adminKey.trim());
     setStatus('Admin API key saved locally.');
+    setLoadError('');
   };
 
   const connectShopify = () => {
@@ -147,8 +158,16 @@ export default function SettingsPage() {
           <section className="mt-6 max-w-3xl rounded-3xl border border-slate-800 bg-slate-900/90 p-6">
             <h2 className="text-xl font-semibold">Connected stores</h2>
             <div className="mt-4 space-y-3">
+              {loadError ? (
+                <p className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                  {loadError}
+                </p>
+              ) : null}
               {stores.length === 0 ? (
-                <p className="text-slate-400">No connected stores loaded. Save admin API key and connect a store.</p>
+                <p className="text-slate-400">
+                  No connected stores loaded. Save your admin API key above — your Shopify OAuth connection is stored on
+                  the server and may still exist even if this list is empty.
+                </p>
               ) : (
                 stores.map((store) => (
                   <div key={store.id} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">

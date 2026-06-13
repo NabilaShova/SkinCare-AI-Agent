@@ -24,6 +24,8 @@ from app.services.rag import (
     pick_products_for_concerns,
     search_knowledge,
     search_products,
+    _concern_score,
+    _contains_phrase,
 )
 
 Intent = Literal[
@@ -138,23 +140,54 @@ AFFIRMATIVE_REPLIES = {
 HAIR_CONCERN_KEYS = frozenset({"hair_fall", "dandruff", "frizz", "dry_hair", "curly_hair"})
 
 HAIR_TOPIC_TERMS = (
-    "hair",
+    "hair fall",
+    "hair loss",
     "shampoo",
     "conditioner",
     "scalp",
     "dandruff",
     "frizz",
-    "curly",
-    "wavy",
-    "hair fall",
-    "hair loss",
+    "frizzy",
+    "curly hair",
+    "wavy hair",
+    "dry hair",
+    "damaged hair",
     "hair oil",
     "hair mask",
     "hair serum",
-    "hair care",
-    "haircare",
+    "hair care routine",
+    "haircare routine",
     "thinning hair",
     "hijab-friendly",
+)
+
+EXPLICIT_HAIR_SIGNALS = HAIR_TOPIC_TERMS + ("haircare",)
+
+SKINCARE_SIGNAL_TERMS = (
+    "skincare",
+    "moisturizer",
+    "cleanser",
+    "sunscreen",
+    "spf",
+    "serum",
+    "toner",
+    "exfoliant",
+    "face wash",
+    "facial",
+    "complexion",
+    "dark spot",
+    "wrinkle",
+    "pimple",
+    "breakout",
+)
+
+SKIN_ROUTINE_PHRASES = (
+    "morning routine",
+    "night routine",
+    "skincare routine",
+    "am routine",
+    "pm routine",
+    "evening routine",
 )
 
 PRODUCT_BROWSE_TERMS = [
@@ -207,6 +240,64 @@ def _last_assistant_offered_routine(history: list[dict[str, str]]) -> bool:
     return False
 
 
+def _topic_context_from_user_turn(
+    message: str,
+    history: list[dict[str, str]],
+    profile: dict[str, Any],
+) -> str:
+    """User-only context for skincare vs hair routing (ignore generic assistant greetings)."""
+    parts: list[str] = []
+    if _is_affirmative(message):
+        prior = _recent_substantive_user_message(history)
+        if prior:
+            parts.append(prior)
+    if message.strip():
+        parts.append(message)
+    if profile.get("skin_type"):
+        parts.append(str(profile["skin_type"]))
+    if profile.get("concerns"):
+        parts.append(" ".join(str(concern) for concern in profile["concerns"]))
+    return " ".join(parts).lower()
+
+
+def _explicit_hair_signals(text: str) -> bool:
+    lowered = text.lower()
+    return any(term in lowered for term in EXPLICIT_HAIR_SIGNALS)
+
+
+def _skin_signals(text: str) -> bool:
+    lowered = text.lower()
+    if any(_contains_phrase(lowered, skin_type) for skin_type in SKIN_TYPES):
+        return True
+    if any(term in lowered for term in SKINCARE_SIGNAL_TERMS):
+        return True
+    if any(phrase in lowered for phrase in SKIN_ROUTINE_PHRASES):
+        return True
+    if "skin" in lowered and not _explicit_hair_signals(lowered):
+        return True
+    return False
+
+
+def _last_substantive_assistant_message(history: list[dict[str, str]]) -> str:
+    for item in reversed(history):
+        if item["role"] != "assistant":
+            continue
+        content = item["content"].strip()
+        if len(content) < 40:
+            continue
+        if content.lower().startswith("hi!") or "what would you like help with" in content.lower():
+            continue
+        return content
+    return ""
+
+
+def _assistant_message_is_hair_focused(text: str) -> bool:
+    lowered = text.lower()
+    return _explicit_hair_signals(lowered) or any(
+        phrase in lowered for phrase in ("hair care routine", "shampoo", "conditioner", "scalp treatment")
+    )
+
+
 def _combined_conversation_context(
     message: str,
     history: list[dict[str, str]],
@@ -232,10 +323,26 @@ def _combined_conversation_context(
 
 
 def _is_hair_topic(message: str, history: list[dict[str, str]], profile: dict[str, Any]) -> bool:
-    combined = _combined_conversation_context(message, history, profile)
-    if any(concern in HAIR_CONCERN_KEYS for concern in detect_concerns(combined, profile)):
+    user_context = _topic_context_from_user_turn(message, history, profile)
+
+    if _skin_signals(user_context) and not _explicit_hair_signals(user_context):
+        return False
+
+    if any(concern in HAIR_CONCERN_KEYS for concern in detect_concerns(user_context, profile)):
         return True
-    return any(term in combined for term in HAIR_TOPIC_TERMS)
+
+    if _explicit_hair_signals(user_context):
+        return True
+
+    if _is_affirmative(message):
+        assistant = _last_substantive_assistant_message(history)
+        if assistant:
+            if _assistant_message_is_hair_focused(assistant):
+                return True
+            if _skin_signals(assistant) and not _explicit_hair_signals(assistant):
+                return False
+
+    return False
 
 
 def _is_hair_product(product: Product) -> bool:
@@ -798,9 +905,20 @@ def _wants_routine_build(message: str, history: list[dict[str, str]], last_inten
     return any(term in message.lower() for term in ["routine", "morning routine", "night routine", "build a"])
 
 
-def _pick_skincare_routine_products(products: list[Product]) -> dict[str, Product | None]:
+def _pick_skincare_routine_products(
+    products: list[Product],
+    profile: dict[str, Any] | None = None,
+    concerns: list[str] | None = None,
+) -> dict[str, Product | None]:
+    profile = profile or {}
+    concerns = concerns or []
+    ranked = sorted(
+        [product for product in products if _is_skincare_routine_product(product)],
+        key=lambda product: _concern_score(product, concerns),
+        reverse=True,
+    )
     slots = {"cleanser": None, "serum": None, "moisturizer": None, "sunscreen": None}
-    for product in products:
+    for product in ranked:
         if not _is_skincare_routine_product(product):
             continue
         haystack = _product_haystack(product)
@@ -844,14 +962,27 @@ def _pick_hair_routine_products(
     return slots
 
 
-def _skincare_routine_fallback_answer(products: list[Product], profile: dict[str, Any]) -> str:
-    slots = _pick_skincare_routine_products(products)
+def _skincare_routine_fallback_answer(
+    products: list[Product],
+    profile: dict[str, Any],
+    message: str = "",
+    history: list[dict[str, str]] | None = None,
+) -> str:
+    history = history or []
+    query = _topic_context_from_user_turn(message, history, profile)
+    concerns = detect_concerns(query, profile)
+    slots = _pick_skincare_routine_products(products, profile, concerns)
     skin = profile.get("skin_type")
-    opener = (
-        f"Here is a simple skincare routine for {skin} skin using products we carry:"
-        if skin
-        else "Here is a simple skincare routine using products we carry:"
-    )
+    wants_morning = "morning" in message.lower() or "am routine" in message.lower()
+    wants_night = "night" in message.lower() or "evening" in message.lower() or "pm routine" in message.lower()
+
+    if concerns:
+        opener = f"Here is a simple skincare routine for {concern_label(concerns[0])} using products we carry:"
+    elif skin:
+        opener = f"Here is a simple skincare routine for {skin} skin using products we carry:"
+    else:
+        opener = "Here is a simple skincare routine using products we carry:"
+
     lines = [opener]
     morning = []
     if slots["cleanser"]:
@@ -862,9 +993,6 @@ def _skincare_routine_fallback_answer(products: list[Product], profile: dict[str
         morning.append(f"3. Moisturizer — {slots['moisturizer'].title}")
     if slots["sunscreen"]:
         morning.append(f"4. Sunscreen — {slots['sunscreen'].title}")
-    if morning:
-        lines.append("Morning:")
-        lines.extend(morning)
     night = []
     if slots["cleanser"]:
         night.append(f"1. Cleanser — {slots['cleanser'].title}")
@@ -872,9 +1000,21 @@ def _skincare_routine_fallback_answer(products: list[Product], profile: dict[str
         night.append(f"2. Treatment serum — {slots['serum'].title}")
     if slots["moisturizer"]:
         night.append(f"3. Moisturizer — {slots['moisturizer'].title}")
-    if night:
-        lines.append("Night:")
-        lines.extend(night)
+    if wants_morning and not wants_night:
+        if morning:
+            lines.append("Morning:")
+            lines.extend(morning)
+    elif wants_night and not wants_morning:
+        if night:
+            lines.append("Night:")
+            lines.extend(night)
+    else:
+        if morning:
+            lines.append("Morning:")
+            lines.extend(morning)
+        if night:
+            lines.append("Night:")
+            lines.extend(night)
     if len(lines) == 1:
         return (
             "I can build a skincare routine once we have a cleanser, serum, moisturizer, "
@@ -889,7 +1029,7 @@ def _hair_routine_fallback_answer(
     message: str,
     history: list[dict[str, str]],
 ) -> str:
-    combined = _combined_conversation_context(message, history, profile, include_last_assistant=False)
+    combined = _topic_context_from_user_turn(message, history, profile)
     concerns = [concern for concern in detect_concerns(combined, profile) if concern in HAIR_CONCERN_KEYS]
     if not concerns:
         concerns = ["hair_fall"]
@@ -951,7 +1091,7 @@ def _routine_fallback_answer(
 ) -> str:
     if _is_hair_topic(message, history, profile):
         return _hair_routine_fallback_answer(products, profile, message, history)
-    return _skincare_routine_fallback_answer(products, profile)
+    return _skincare_routine_fallback_answer(products, profile, message, history)
 
 
 def _concern_product_reason(product: Product, concern: str) -> str:

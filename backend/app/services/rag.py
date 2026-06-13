@@ -158,7 +158,16 @@ CONCERN_SIGNALS: dict[str, dict[str, Any]] = {
         "label": "anti-aging",
     },
     "dryness": {
-        "match": ["dry skin", "dryness", "dehydrat", "flaky", "tight skin", "barrier repair"],
+        "match": [
+            "dry skin",
+            "dry sensitive",
+            "sensitive dry",
+            "dryness",
+            "dehydrat",
+            "flaky",
+            "tight skin",
+            "barrier repair",
+        ],
         "ingredients": ["ceramide", "hyaluronic", "squalane", "shea", "glycerin", "barrier"],
         "preferred_types": ["moisturizer", "serum", "cleanser"],
         "tags": ["dry", "hydrat", "barrier", "ceramide", "repair"],
@@ -266,7 +275,7 @@ def detect_concerns(query: str, profile: dict[str, Any] | None = None) -> list[s
     lowered = query.lower()
     found: list[str] = []
     for concern, config in CONCERN_SIGNALS.items():
-        if any(term in lowered for term in config["match"]):
+        if any(_contains_phrase(lowered, term) for term in config["match"]):
             found.append(concern)
     for concern in profile.get("concerns", []):
         mapped = PROFILE_CONCERN_MAP.get(str(concern).lower())
